@@ -4,7 +4,7 @@
  * Reads: projekte, kunden, zeiterfassung, beraterInnen. Writes: rechnungen (createRechnungenEntry).
  * Composes: IntentWizardShell, EntitySelectStep, StatusBadge.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format, addDays } from 'date-fns';
 import { IconFileInvoice, IconClock, IconUser, IconCalendar, IconCheck } from '@tabler/icons-react';
 import { IntentWizardShell } from '@/components/blocks/IntentWizardShell';
@@ -25,7 +25,7 @@ const RECHNUNGSSTATUS_OPTIONS = LOOKUP_OPTIONS['rechnungen']?.['rechnungsstatus'
 const ABRECHNUNGSMONAT_OPTIONS = LOOKUP_OPTIONS['rechnungen']?.['abrechnungsmonat'] ?? [];
 
 export default function RechnungErstellenPage() {
-  const { projekte, kunden, zeiterfassung, loading, error, fetchAll } = useDashboardData();
+  const { projekte, kunden, zeiterfassung, rechnungen, loading, error, fetchAll } = useDashboardData();
 
   const [step, setStep] = useState(1);
 
@@ -50,6 +50,14 @@ export default function RechnungErstellenPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdRechnungId, setCreatedRechnungId] = useState<string | null>(null);
+
+  // Auto-generate Rechnungsnummer when reaching step 3 and field is still empty
+  useEffect(() => {
+    if (step !== 3 || rechnungsnummer) return;
+    const year = rechnungsdatum.slice(0, 4);
+    const nr = String(rechnungen.length + 1).padStart(3, '0');
+    setRechnungsnummer(`RE-${year}-${nr}`);
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived: active projects only
   const aktiveProjekte = projekte.filter(p => p.fields.status?.key === 'in_bearbeitung');

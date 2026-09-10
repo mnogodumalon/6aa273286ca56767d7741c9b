@@ -55,6 +55,10 @@ page's `fields` config.
 
 ## The page component
 
+Before writing: Read `.lane-context.md` — the API index of this tree (every entity's fields with
+kinds, options and targets; every `@/lib/journey` export with its signature; every block's props).
+It replaces `src/types/app.ts` and every grep over `src/lib/journey` / `src/components/blocks`.
+
 Compose from `PublicShell` + blocks + widgets; data flows only through
 `publicClient`.
 
@@ -96,6 +100,15 @@ export default function Booking() {
   // list endpoints: listPublicRecords(cfg, page, { appId, limit, offset })
   //   → returns a Record<string, PublicRecordResult>, NOT an array: take
   //     Object.values(...) when you want a list.
+  //   A conditional fallback must keep that type:
+  //     appId ? listPublicRecords(cfg, page, { appId }) : Promise.resolve<Record<string, PublicRecordResult>>({})
+  //   A bare Promise.resolve({}) widens everything to unknown (TS18046 on
+  //   every r.fields) — check-public rejects it.
+  //   Public grants cannot filter or count (allowed query: field/limit/offset;
+  //   max 500). `useRecordSearch(publicPort, …)` works — it loads up to 500 and
+  //   searches client-side, and the step still adapts cards/search-first
+  //   to the count. Above 500 records a public picker is the wrong design — ask
+  //   for a link parameter or a narrower `scope`.
   // create endpoints: createPublicRecord(cfg, page, fields)
   // A PublicRecordResult is { id, fields, created_at, updated_at } — the id
   // field is `id`, NOT `record_id`. That name belongs to the INTERNAL record
@@ -126,8 +139,11 @@ Layout — pick the shell mode by page type:
   FAR too narrow for hero sections and card grids. With `fullBleed`, build
   full-width bands and give each section its own inner container
   (`max-w-5xl mx-auto px-4`).
+- No `intro` on a public wizard: the shell's title and subtitle already say what the page does, and the
+  wizard ignores the prop on a `#/public` route anyway — a visitor starts in step 1.
 - Wizards (`IntentWizardShell`) render INSIDE the shell's card like any
-  other column content — the stepper is compact and centered, it fits.
+  other column content. The shell widens the card to the intent pages'
+  column on its own when a wizard is inside — do not pass `wide` for it.
   Never pass `plain` for a wizard: a live pair of dashboards shipped the
   same 0.0.331 shell, but the wizard page opted out and looked like a
   different product next to the carded form.
@@ -239,6 +255,10 @@ create booking); one publish, one link.
 }
 ```
 
+`max_records` is capped at **500** by the platform (the grant is rejected
+above it); the service clamps larger values to 500, so declare what the page
+actually needs and page with `limit`/`offset` beyond that.
+
 **A page reached with a link parameter MUST declare it.** If the page reads
 `?sitzungId=…` (an invitation, a personalised booking link), add a
 `link_param` block — otherwise the owner has no way to obtain a working
@@ -266,15 +286,26 @@ a page that reads a parameter without declaring it.
 Still give the page a sensible state WITHOUT the parameter (a short note, or
 a list to pick from) — visitors do share bare URLs.
 
-- `scope` is a vSQL filter over `r`. Two hard syntax rules (the server
+- `scope` is a vSQL filter over `r`. Lists take BRACKETS: `r.v_status not in ['storniert', 'angefragt']` —
+  parentheses are a 400 that only shows after the deploy (live: the booking page lost its occupancy).
+  `check-staging` probes every scope against the real server. Two hard syntax rules (the server
   probes the expression and rejects the whole page otherwise): fields are
   ALWAYS accessed with the `v_` prefix (`r.v_status`, never `r.status`),
-  and the current time is `now()` (`today` does not exist). Example:
-  `r.v_einsatz_beginn >= now()`. Keep scopes simple — one or two
+  a DATETIME field compares with `now()`, a DATE field with `today()` or a
+  `@(YYYY-MM-DD)` literal — the other way round is a 400, a quoted string
+  against a date matches nothing. Example: `r.v_einsatz_beginn >= now()`. Keep scopes simple — one or two
   conditions. ALWAYS pair scope with a plain-language `scope_description`
   — the owner confirms that text when publishing, never the vSQL.
+- Visitors type their OWN data: `useStepForm(entity, { fields: [...], autoComplete: true })` switches
+  browser autofill on (given-name, email, postal-code… from the generated rules). The layer leaves it
+  off by default because the dashboard's team enters other people's data; `check-public` rejects a
+  public page that forgets it.
 - `preset_fields` are server-owned values the visitor can neither see nor
   override; `fields` is the strict allowlist of what a visitor may submit.
+- A preset key must be a FIELD OF THE ENTITY (the brief's `name![type: keys]` list, `app_metadata.json`).
+  "The team sets the status later" in a brief is an intention, not a field — when the entity has no
+  `status` control, there is nothing to preset: leave it out. `check-staging` checks your fragment;
+  the integration drops such a key anyway, so it never helps.
 - The create payload may carry ONLY keys from that endpoint's `fields` —
   ONE undeclared key rejects the WHOLE submit at runtime, and the generic
   catch message is all the visitor ever sees.
@@ -283,6 +314,21 @@ Wrong: `createPublicRecord(cfg, page, { ...form, status: 'offen' })` with
 `status` not in `fields` — every submit fails with 400.
 Right: `"preset_fields": { "status": "offen" }` in the endpoint, and the
 payload sends only the declared `fields`.
+- Never put a preset key into the payload yourself — not in the form, not in
+  the plan's `values`. The grant rejects it (`unallowed_fields`), and the
+  client drops preset keys before the request anyway: the declaration alone
+  decides. `values: () => ({ status: 'anfrage' })` next to
+  `preset_fields: { status: 'anfrage' }` is dead code.
+- The stay's resource (`OCCUPANCY[entity].resource`, e.g. `zimmer`) is a FORM
+  FIELD: list it in `useStepForm(entity, { fields: [...] })` and bind it
+  (`f.record('zimmer')`, or the EntitySelectStep calling `f.set('zimmer', id, label)`).
+  Page state handed over through `values` never reaches the draft, the summary
+  or validation — a reload lost the room and the record was created without
+  one (live-seen). `useStepForm` makes the resource required on its own;
+  `check-public.mjs` rejects a form for that entity without it.
+
+Wrong: `const [zimmer, setZimmer] = useState<string>(); … values: () => ({ zimmer: zimmer ?? '' })`
+Right: `useStepForm('buchungen', { fields: ['zimmer', 'anreisedatum', 'abreisedatum', …] })` and `f.set('zimmer', id, label)` from the room picker.
 - A `required` control in `app_metadata.json` is an INTERNAL duty for the
   team, not an entry duty for a visitor. Ask what the visitor can actually
   know: a table number, an assigned employee, or a confirmation status is
@@ -321,7 +367,9 @@ reservation arrives without a table and the team assigns one.
 Wrong: `teilnehmer: \`https://…/rest/apps/${appId}/records/${id}\`` — the
 REST form is rejected with 400 "Unsupported field value", and the page
 only fails at the LAST step of a multi-create flow.
-Right: `teilnehmer: recordRef(cfg, page, tnEp.app_id, created.id)`.
+Right: `teilnehmer: recordRef(cfg, page, tnEp.app_id, created.id)` — or, on the
+journey layer, a plan step with `link: { teilnehmer: 'teilnehmer' }` (the
+port shapes the reference; nothing to build by hand).
 
 Wrong: page fetches everything and filters client-side
 (`fields: [all 12 fields]`, no scope — leaks the whole table).
@@ -338,9 +386,70 @@ intent UIs, so keep them auth-agnostic.
 Pre-provided flow blocks already live there — compose them instead of
 rebuilding steppers: `IntentWizardShell` (wizard container; pass
 `back={false}` on public pages — anonymous visitors have no dashboard),
-`EntitySelectStep` (searchable pick-an-item list), `BudgetTracker`,
-`StatusBadge`, `AvailabilityRangePicker` (availability-aware date-range
-calendar, see below).
+`StepNav`, `SummaryStep`, `SuccessStep`, `ChoiceGroup`, `EntitySelectStep`
+(searchable pick-an-item list), `BudgetTracker`, `StatusBadge`,
+`AvailabilityRangePicker` (availability-aware date-range calendar, see below).
+
+## The journey layer on a public page — same blocks, the public door
+
+A public form or wizard is the same journey as the internal flow; only the
+data door differs. The journey layer (`@/lib/journey`, allowlisted) gives a
+public page validation with real field labels, the review step, the success
+screen with reference/copy/print, the draft and idempotent writes — with the
+grant-scoped adapter instead of the service:
+
+```tsx
+import { useStepForm, useJourneySubmit } from '@/lib/journey';
+import { createPublicPort } from '@/lib/journey/publicPort';
+import { IntentWizardShell } from '@/components/blocks/IntentWizardShell';
+import { StepNav } from '@/components/blocks/StepNav';
+import { SummaryStep } from '@/components/blocks/SummaryStep';
+import { SuccessStep } from '@/components/blocks/SuccessStep';
+import { AvailabilityRangePicker } from '@/components/blocks/AvailabilityRangePicker';
+
+const port = useMemo(() => createPublicPort(cfg, page), [cfg, page]);   // after cfg/page loaded
+// `required` mirrors the PAGE's fields config — the platform's internal
+// required flags do not bind an anonymous visitor (the grant decides).
+const anfrage = useStepForm('buchungen', {
+  fields: page.fields.map(f => f.key),
+  required: Object.fromEntries(page.fields.map(f => [f.key, f.required])),
+  steps: { anreise: 1, abreise: 1, vorname: 2, nachname: 2, email: 2 },
+});
+const submit = useJourneySubmit(port, [{ key: 'anfrage', entity: 'buchungen', form: anfrage, primary: true }], { draftKey: 'buchung' });
+
+<IntentWizardShell steps={STEPS} currentStep={step} onStepChange={setStep} back={false} forms={[anfrage]} draftKey="buchung">
+  {step === 1 && <><AvailabilityRangePicker {...anfrage.range('anreise', 'abreise', { blocked })} /><StepNav onNext={() => anfrage.validate(['abreise'])} nextStepLabel={tx('Kontakt')} /></>}
+  {step === 2 && <><Input {...anfrage.field('vorname')} /><Input {...anfrage.field('email')} /><StepNav onNext={() => anfrage.validate(['vorname', 'nachname', 'email'])} nextStepLabel={tx('Prüfen')} /></>}
+  {step === 3 && !submit.done && <SummaryStep forms={[anfrage]} submit={submit} whatHappensNext={tx('Wir melden uns innerhalb eines Tages per E-Mail.')} />}
+  {submit.result && <SuccessStep result={submit.result} forms={[anfrage]} next={[{ label: tx('Weitere Anfrage'), onClick: restart }]} />}
+</IntentWizardShell>
+```
+
+Rules the layer settles for you: record ids stay plain (`port.ref` shapes
+the grant reference — never `recordRef` by hand inside a plan), the port
+creates through EVERY create endpoint the page declares in surface.json (an
+entity without one throws with the fix in the message), `port.list(entity)`
+reads through the page's list endpoints (declare them in surface.json), and
+the success screen renders ONLY from `submit.result`.
+
+**Two records from one page (a guest, then the booking that links it) are two
+PLAN STEPS, never a hand-written create:**
+```tsx
+const submit = useJourneySubmit(port, [
+  { key: 'gast', entity: 'gaeste', form: gast },
+  { key: 'buchung', entity: 'buchungen', form: buchung, primary: true, needs: ['gast'], link: { gast: 'gast' } },  // field ← id of the done step
+], { draftKey: 'buchungsanfrage' });
+```
+Both entities need a `create` endpoint on the page; `link` writes the grant
+reference for you. List the MAIN record's endpoint first — the page's
+entity (title, reference, occupancy read) is the create target that
+references the others, else the first listed. A `PublicShell` renders the heading — give
+the inner `IntentWizardShell` no `title`.
+
+Wrong: `createPublicRecord(cfg, page, {...})` in a hand-written submit handler
+with its own required check and a "Vielen Dank" div.
+Right: `useJourneySubmit(port, plan)` + `<SummaryStep>` + `<SuccessStep>` —
+one review step, one reference, a retry that never duplicates.
 
 **Booking-style pages MUST use `AvailabilityRangePicker`.** Whenever the
 page both LISTS occupancy (an entity with a start/end date pair and a
@@ -352,25 +461,31 @@ no range across an occupied night, min-nights, legend, i18n); map the
 listed records into its `blocked` prop and bind `value`/`onChange`:
 
 ```tsx
-import { AvailabilityRangePicker, rangeIsFree } from '@/components/blocks/AvailabilityRangePicker';
-const blocked = eintraege
-  .filter(e => e.status === 'belegt')
-  .map(e => ({ start: e.anreisedatum, end: e.abreisedatum }));
-<AvailabilityRangePicker blocked={blocked} value={range} onChange={setRange} minNights={3} />
+import { AvailabilityRangePicker } from '@/components/blocks/AvailabilityRangePicker';
+import { occupancyFor } from '@/lib/journey';
+// ONE rule for "which nights are taken" — decided by the build orchestrator in
+// src/config/journey.ts and applied by the same function the internal flow
+// uses, so both calendars always agree: stay pair, picked resource, no
+// cancelled records. Never filter by hand. No rule for the entity → no
+// calendar (two DatePickers), no availability claim.
+const blocked = occupancyFor('buchungen', Object.values(records), { resource: f.get('zimmer') as string });
+<AvailabilityRangePicker {...f.range('anreise', 'abreise', { blocked, minNights: 3 })} />
 ```
 
-On submit, revalidate with `rangeIsFree(range.from, range.to, blocked)` —
-the availability on the page can go stale between load and submit. Do not
-re-derive overlap logic: departure days are EXCLUSIVE (back-to-back
-bookings are legal), and the block already encodes that convention.
+The form's range binding re-validates the picked stay against `blocked` on
+confirm — the availability on the page can go stale between load and submit.
+Do not re-derive overlap logic: departure days are EXCLUSIVE (back-to-back
+bookings are legal), and the block already encodes that convention. Let the
+visitor pick the RESOURCE (room, vehicle) before the calendar — occupancy is
+per resource; a calendar over all rooms at once blocks nights that are free.
 
-Availability semantics: map ONLY the occupied status into `blocked` —
-**absence of a record means available**, and an explicit "free" record is
-just as available as no record at all. Never render per-record "free"
-markers: a calendar where three explicitly-marked days are green and
-every other free day looks neutral tells the visitor the neutral days are
-NOT bookable (a live page did exactly that). Occupied is the only state
-worth marking; everything else is selectable.
+Availability semantics: `occupancyFor` maps only occupying records into
+`blocked` — **absence of a record means available**, and a cancelled or
+"free" record is just as available as no record at all. Never render
+per-record "free" markers: a calendar where three explicitly-marked days are
+green and every other free day looks neutral tells the visitor the neutral
+days are NOT bookable (a live page did exactly that). Occupied is the only
+state worth marking; everything else is selectable.
 
 Wrong: two bare `<DatePicker>` / `<input type="date">` fields next to a
 separate availability list — the visitor can request an occupied period
@@ -395,3 +510,13 @@ every registered slug is declared in surface.json) plus the standard
 gates, then `npm run build`. In your summary: name the page's slug, state
 that it is a DRAFT until the owner publishes it, and quote the
 `scope_description` you declared.
+
+## Dates and initial values
+
+Dates render through `<Bound form={f} name="key" />` (it picks the DatePicker itself) or, inline,
+`<DatePicker {...f.date('key')} />` from `@/components/DatePicker` — there is NO `@/components/ui/date-picker`
+and never a native `<input type="date">`. A prefilled value belongs to the form, not to the input: `useStepForm(entity, { initial: { ausgabedatum: todayIso() } })` (`todayIso` from `@/lib/journey`, local calendar day; `nowIso()` is the datetime twin, `yyyy-MM-dd'T'HH:mm` — never build either with `format(new Date(), …)` in a page). `defaultValue` on any input is rejected by the gate: it shows a value the form never has, so the review step says the field is empty while the user sees it filled (live).
+
+## Labels
+
+Every bound control sits inside `<Field form={f} name="key">…</Field>` (`@/components/blocks/Field`): label from the entity's rules, required mark, optional `hint`, error line. `check-public` rejects a bound control without a label.

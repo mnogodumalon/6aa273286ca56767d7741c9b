@@ -107,9 +107,9 @@ Deployment is automatic — do NOT deploy manually. After build succeeds, STOP.
 
 ## What Is Pre-Generated (DO NOT touch!)
 
-CRUD sub-pages, dialogs, routing, sidebar, shared components, and the design system are pre-generated.
+Dialogs, routing, sidebar, shared components, and the design system are pre-generated.
 
-**DO NOT touch:** index.css, CRUD pages, dialogs, EntityCrud.tsx, App.tsx, PageShell.tsx, StatCard.tsx, DashboardGrid.tsx, WorkList.tsx, HeroBanner.tsx, ConfirmDialog.tsx, ChatWidget.tsx, useDashboardData.ts, enriched.ts, enrich.ts, formatters.ts, polish.ts, ai.ts, scripts/check-dashboard.mjs.
+**DO NOT touch:** index.css, dialogs, EntityCrud.tsx, App.tsx, PageShell.tsx, StatCard.tsx, DashboardGrid.tsx, WorkList.tsx, HeroBanner.tsx, ConfirmDialog.tsx, ChatWidget.tsx, useDashboardData.ts, enriched.ts, enrich.ts, formatters.ts, polish.ts, ai.ts, scripts/check-dashboard.mjs.
 
 **EDITABLE:** `src/config/ai-features.ts` — toggle `AI_PHOTO_SCAN['EntityName'] = true` to enable the "Foto scannen" button in that entity's create/edit dialog. Useful for entities where users may photograph documents, receipts, or business cards to auto-fill form fields.
 
@@ -149,7 +149,7 @@ Every dashboard needs ONE interactive component — the **reason users open the 
 - Shows data in its most natural form (the paradigm you chose in Step 1)
 - Provides immediate visual feedback
 
-The pre-generated CRUD list pages are a fallback. Users should do 90% of their work without leaving the dashboard.
+Users should do 90% of their work without leaving the dashboard.
 
 **Create/edit dialogs come from `useEntityCrud`** — the pre-generated `{Entity}Dialog`s are already mounted inside `{crud.surfaces}` (all field types, photo scan, validation, applookup selects, attachments in edit-mode). Open them via `crud.<entity>.openCreate(defaults)` / `crud.<entity>.openEdit(record)` — never import or render a dialog yourself, never build custom dialog forms from scratch.
 
@@ -162,7 +162,7 @@ When your UI shows the details of ONE record (image preview, kanban card click, 
 - ❌ Do NOT build a custom `<div className="fixed inset-0 …">` overlay for record details.
 - ❌ Do NOT repurpose shadcn `<Dialog>` for record-view (Dialog stays for forms/confirmations).
 - ❌ Do NOT invent domain-named one-off components (`ImagePreview`, `BookingCard`, `OrderDetails`).
-- ✅ Two surfaces, one composition: **route** (`{Entity}DetailPage.tsx`, pre-generated) and **overlay** (`RecordOverlay`, you instantiate). Customization happens via slots, never by replacing the shell.
+- ✅ One surface, one composition: the **overlay** (`RecordOverlay`, rendered by the EntityCrud host). Customization happens via slots, never by replacing the shell.
 
 ```tsx
 import {
@@ -335,7 +335,7 @@ The schema already names the hub and its satellites for you: **`HUB_TOPOLOGY` in
 - **Primary surface = the hub** as cockpit cards. Each card carries its SATELLITE DENSITY so the relationship is visible before the click: `{maengelVon(b.id).length} Mängel`, an expiring-permit chip, `{berichteVon(b.id).length} Ber.`. A typed `useState` per satellite + a `xVon = (id) => x.filter(r => parentId(r) === id)` helper each.
 - **The hub overlay shows ALL satellites automatically.** The EntityCrud host renders the generated `<{Hub}Details>` block for the hub's overlay branch — one `<SatelliteSection>` per entry in `HUB_TOPOLOGY[hubKey]`, each with the guaranteed mechanics: row click drills into the satellite's own detail (never the edit form), the contextual "+" opens that satellite's create dialog with the hub pre-set, header-count + relation-list + dashed-add layout consistent. `check-hub.mjs` verifies it and `useEntityCrud()` satisfies it by construction — YOU wire nothing per satellite; your job is opening the hub: `crud.<hub>.openDetail(record)` from the cockpit cards.
 - **Cross-entity signal → hero.** Compute the urgent state ACROSS satellites (a permit expiring in ≤7 days, a critical Mangel) and raise it as the `<HeroBanner>` with a resolving action. The hub's own status is rarely the hero.
-- HARD: never leave satellites as isolated CRUD pages. A hub detail showing only its own fields is the failure this pattern exists to prevent.
+- HARD: never leave satellites as isolated record lists. A hub detail showing only its own fields is the failure this pattern exists to prevent.
 
 ### Chain/pipeline (each entity → its predecessor)
 Symptom: entities point at the PREVIOUS one in a sequence (Anfrage→Angebot→Auftrag→Rechnung). Don't render N kanbans — track ONE Vorgang through the stages.

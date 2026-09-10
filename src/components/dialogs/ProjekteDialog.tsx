@@ -29,7 +29,7 @@ import type { ComputedContext } from '@/config/form-enhancements/types';
 import { applyFieldOrder, flattenFieldOrder, applyDefaults, evalComputed, numberInputProps, clampNumberValue, classifyComputed, extractApplookupRefs, mergeApplookupRefs, resolveApplookupRef } from '@/config/form-enhancements/types';
 import { formEnhancements, computedDeps, computedApplookupRefs } from '@/config/form-enhancements/Projekte';
 import { AttachmentsSection } from '@/components/AttachmentsSection';
-import { t, appLabel, fieldLabel, lookupLabel, localeTag, CURRENCY } from '@/i18n';
+import { t, tx, appLabel, fieldLabel, lookupLabel, localeTag, CURRENCY } from '@/i18n';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select, SelectContent, SelectItem,
@@ -43,6 +43,27 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { IconAlertCircle, IconCamera, IconChevronDown, IconCircleCheck, IconClipboard, IconFileText, IconLoader2, IconPhotoPlus, IconSparkles, IconUpload, IconX } from '@tabler/icons-react';
 import { fileToDataUri, extractFromInput, extractPhotoMeta, reverseGeocode } from '@/lib/ai';
 import { lookupKey } from '@/lib/formatters';
+
+// Kürzel für die automatische Projektkennung-Generierung
+const PROJEKTART_KUERZEL: Record<string, string> = {
+  it_beratung: 'BER',
+  entwicklung: 'ENT',
+  schulung: 'SCH',
+  konzeption: 'KON',
+  support: 'SUP',
+  sonstiges: 'SON',
+};
+
+function buildProjektkennung(
+  jahr: string | undefined,
+  artKey: string | undefined,
+  nummer: number | undefined,
+): string | null {
+  if (!jahr || !artKey || nummer == null) return null;
+  const kuerzel = PROJEKTART_KUERZEL[artKey];
+  if (!kuerzel) return null;
+  return `${jahr}-${kuerzel}-${String(nummer).padStart(3, '0')}`;
+}
 
 /** Widened prefill type for ProjekteDialog.defaultValues — see file header. */
 export type ProjekteDialogDefaults = Omit<Projekte['fields'], 'projektart' | 'projektstart_monat' | 'status'> & {
@@ -97,6 +118,8 @@ function normalizeDefaults(values: Record<string, unknown>): Record<string, unkn
 export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordId, kundenList, beraterInnenList, enablePhotoScan = true, enablePhotoLocation = true }: ProjekteDialogProps) {
   const [fields, setFields] = useState<Partial<Projekte['fields']>>({});
   const [saving, setSaving] = useState(false);
+  // true = Projektkennung wird automatisch generiert; false = User hat manuell editiert
+  const [kennungIsAuto, setKennungIsAuto] = useState(true);
   const normalizedDefaults = useMemo<Record<string, unknown> | undefined>(
     () => (defaultValues ? normalizeDefaults(defaultValues as Record<string, unknown>) : undefined),
     [defaultValues],
@@ -208,8 +231,20 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
       setScanSuccess(false);
       setAiText('');
       setSubmitError(null);
+      // Automatik nur im Erstellen-Modus (kein recordId, keine vorhandene Kennung)
+      setKennungIsAuto(!recordId && !defaultValues?.projektkennung);
     }
   }, [open, normalizedDefaults]);
+  // Automatische Projektkennung: Jahr-KÜRZEL-NNN
+  useEffect(() => {
+    if (!kennungIsAuto) return;
+    const artKey = lookupKey(fields.projektart) ?? undefined;
+    const generated = buildProjektkennung(fields.projektstart_jahr, artKey, fields.projektnummer);
+    if (generated) {
+      setFields(f => ({ ...f, projektkennung: generated }));
+    }
+  }, [fields.projektart, fields.projektstart_jahr, fields.projektnummer, kennungIsAuto]);
+
   useEffect(() => {
     try { localStorage.setItem('ai-use-personal-info', String(usePersonalInfo)); } catch {}
   }, [usePersonalInfo]);
@@ -380,12 +415,35 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
   const fieldBlocks: Record<string, React.ReactNode> = {
     'projektkennung': (
       <div key="projektkennung" className="space-y-1.5">
-        <Label htmlFor="projektkennung">{fieldLabel('projekte', 'projektkennung')} <span className="text-destructive" aria-hidden="true">*</span></Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="projektkennung">
+            {fieldLabel('projekte', 'projektkennung')} <span className="text-destructive" aria-hidden="true">*</span>
+          </Label>
+          {kennungIsAuto ? (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              {tx('Automatisch')}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setKennungIsAuto(true)}
+              className="text-xs text-primary hover:underline shrink-0"
+            >
+              {tx('Automatisch')}
+            </button>
+          )}
+        </div>
         <Input
           id="projektkennung"
-          placeholder="z. B. PRJ-2024-001"
+          placeholder={kennungIsAuto ? tx('Projektart, Jahr und Nummer eingeben') : 'z. B. 2026-ENT-001'}
           value={fields.projektkennung ?? ''}
-          onChange={e => setFields(f => ({ ...f, projektkennung: e.target.value }))}
+          readOnly={kennungIsAuto}
+          className={kennungIsAuto ? 'bg-muted/40 cursor-default select-all' : ''}
+          onChange={e => {
+            setKennungIsAuto(false);
+            setFields(f => ({ ...f, projektkennung: e.target.value }));
+          }}
           required
         />
         {showErrors && !fields.projektkennung && (

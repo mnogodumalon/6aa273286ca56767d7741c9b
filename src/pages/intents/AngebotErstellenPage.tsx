@@ -6,7 +6,7 @@
  * Composes: IntentWizardShell, EntitySelectStep, StatusBadge.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format } from 'date-fns';
 import { IconUser, IconBriefcase, IconFileText, IconCurrencyEuro, IconCircleCheck } from '@tabler/icons-react';
 import { IntentWizardShell } from '@/components/blocks/IntentWizardShell';
@@ -29,7 +29,7 @@ const KOSTENTYP_OPTIONS = LOOKUP_OPTIONS['angebote']?.['kostentyp'] ?? [];
 const KUNDENTYP_OPTIONS = LOOKUP_OPTIONS['kunden']?.['kundentyp'] ?? [];
 
 export default function AngebotErstellenPage() {
-  const { kunden, projekte, loading, error, fetchAll } = useDashboardData();
+  const { kunden, projekte, angebote, loading, error, fetchAll } = useDashboardData();
 
   // Step management
   const [step, setStep] = useState(1);
@@ -79,6 +79,22 @@ export default function AngebotErstellenPage() {
       return matchesKunde && (status === 'akquise' || status === 'in_bearbeitung');
     });
   }, [projekte, selectedKunde]);
+
+  // Auto-generate Angebotsnummer when type is selected and field is still empty
+  useEffect(() => {
+    if (!angebotstypKey || angebotsnummer) return;
+    const TYPKUERZEL: Record<string, string> = {
+      dienstleistung: 'DL',
+      projekt: 'PROJ',
+      wartung: 'WAR',
+      schulung: 'SCH',
+      sonstiges: 'SON',
+    };
+    const kuerzel = TYPKUERZEL[angebotstypKey] ?? angebotstypKey.slice(0, 3).toUpperCase();
+    const existingThisYear = angebote.filter(a => a.fields.angebotsjahr === angebotsjahr);
+    const nr = String(existingThisYear.length + 1).padStart(3, '0');
+    setAngebotsnummer(`${angebotsjahr}-${kuerzel}-${nr}`);
+  }, [angebotstypKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreateKunde = async () => {
     if (!newKundenname.trim()) return;

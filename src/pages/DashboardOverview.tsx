@@ -123,6 +123,14 @@ export default function DashboardOverview({ data }: { data: DashboardData }) {
     });
   }, [projekte, enrichedProjekte, statusFilter]);
 
+  // Compute next sequential Projekt-ID candidate for current year
+  const nextProjektKennung = useMemo(() => {
+    const year = format(clock, 'yyyy');
+    const thisYear = projekte.filter(p => p.fields.projektkennung?.startsWith(year + '-'));
+    const nr = String(thisYear.length + 1).padStart(3, '0');
+    return `${year}-${nr}`;
+  }, [clock, projekte]);
+
   // Move project status (kanban drag)
   const moveProjekt = async (cardId: string, newColumn: string) => {
     const rid = cardId.split(':')[1];
@@ -227,7 +235,7 @@ export default function DashboardOverview({ data }: { data: DashboardData }) {
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
         <button
-          onClick={() => crud.projekte.openCreate({})}
+          onClick={() => crud.projekte.openCreate({ projektkennung: nextProjektKennung })}
           className="flex items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
         >
           <IconPlus size={16} className="shrink-0" />
@@ -332,7 +340,7 @@ export default function DashboardOverview({ data }: { data: DashboardData }) {
               if (proj) crud.projekte.openDetail(proj);
             }}
             onCardMove={moveProjekt}
-            onAddCard={column => crud.projekte.openCreate({ status: column })}
+            onAddCard={column => crud.projekte.openCreate({ status: column, projektkennung: nextProjektKennung })}
           />
         }
         aside={
