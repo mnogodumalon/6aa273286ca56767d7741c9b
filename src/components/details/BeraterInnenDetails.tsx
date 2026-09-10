@@ -1,0 +1,121 @@
+import type { BeraterInnen, Leistungskatalog, Projekte, Zeiterfassung, Rechnungen } from '@/types/app';
+import { APP_IDS } from '@/types/app';
+import { extractRecordId } from '@/services/livingAppsService';
+import {
+  RecordSection, RecordField, RecordRelation, RecordAttachments,
+} from '@/components/widgets/RecordView';
+import { t, appLabel, fieldLabel } from '@/i18n';
+import { SatelliteSection } from '@/components/SatelliteSection';
+
+export interface BeraterInnenDetailsProps {
+  /** Der Record — enriched oder roh; alle Felder werden hier gerendert. */
+  record: BeraterInnen;
+  /** Liste für Leistungskatalog-Zuordnungen und Satelliten. */
+  leistungskatalogList: Leistungskatalog[];
+  /** Zeilen-Klick → overlay.push auf das Leistungskatalog-Detail. */
+  onOpenLeistungskatalog: (record: Leistungskatalog) => void;
+  /** Kontextuelles „+": öffnet den Leistungskatalog-Dialog mit diesem Record vorgesetzt. */
+  onAddLeistungskatalog: () => void;
+  /** Liste für Projekte-Zuordnungen und Satelliten. */
+  projekteList: Projekte[];
+  /** Zeilen-Klick → overlay.push auf das Projekte-Detail. */
+  onOpenProjekte: (record: Projekte) => void;
+  /** Kontextuelles „+": öffnet den Projekte-Dialog mit diesem Record vorgesetzt. */
+  onAddProjekte: () => void;
+  /** 1:N „Zeiterfassung" (berater): VOLLE Liste — der Block filtert auf diesen Record. */
+  zeiterfassungList: Zeiterfassung[];
+  /** Zeilen-Klick → overlay.push auf das Zeiterfassung-Detail (nie der Edit-Dialog). */
+  onOpenZeiterfassung: (record: Zeiterfassung) => void;
+  /** Kontextuelles „+": öffnet den Zeiterfassung-Dialog mit diesem Record vorgesetzt. */
+  onAddZeiterfassung: () => void;
+  /** 1:N „Rechnungen" (berater): VOLLE Liste — der Block filtert auf diesen Record. */
+  rechnungenList: Rechnungen[];
+  /** Zeilen-Klick → overlay.push auf das Rechnungen-Detail (nie der Edit-Dialog). */
+  onOpenRechnungen: (record: Rechnungen) => void;
+  /** Kontextuelles „+": öffnet den Rechnungen-Dialog mit diesem Record vorgesetzt. */
+  onAddRechnungen: () => void;
+}
+
+export function BeraterInnenDetails({
+  record,
+  leistungskatalogList,
+  onOpenLeistungskatalog,
+  onAddLeistungskatalog,
+  projekteList,
+  onOpenProjekte,
+  onAddProjekte,
+  zeiterfassungList,
+  onOpenZeiterfassung,
+  onAddZeiterfassung,
+  rechnungenList,
+  onOpenRechnungen,
+  onAddRechnungen,
+}: BeraterInnenDetailsProps) {
+  return (
+    <>
+      <RecordSection title={t('details')} cols={2}>
+        <RecordField label={fieldLabel('berater/innen', 'nachname')} value={record.fields.nachname} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'vorname')} value={record.fields.vorname} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'titel')} value={record.fields.titel} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'strasse')} value={record.fields.strasse} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'hausnummer')} value={record.fields.hausnummer} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'plz')} value={record.fields.plz} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'ort')} value={record.fields.ort} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'email_beruflich')} value={record.fields.email_beruflich} format="email" />
+        <RecordField label={fieldLabel('berater/innen', 'email_privat')} value={record.fields.email_privat} format="email" />
+        <RecordField label={fieldLabel('berater/innen', 'telefon')} value={record.fields.telefon} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'einstiegsdatum')} value={record.fields.einstiegsdatum} format="date" />
+        <RecordField label={fieldLabel('berater/innen', 'status')} value={record.fields.status} format="pill" />
+        <RecordField label={fieldLabel('berater/innen', 'stundensatz')} value={record.fields.stundensatz} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'sonstiges_1')} value={record.fields.sonstiges_1} format="longtext" className="md:col-span-2" />
+        <RecordField label={fieldLabel('berater/innen', 'sonstiges_2')} value={record.fields.sonstiges_2} format="longtext" className="md:col-span-2" />
+        <RecordField label={fieldLabel('berater/innen', 'stunden_aktueller_monat')} value={record.fields.stunden_aktueller_monat} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'stunden_aktuelles_quartal')} value={record.fields.stunden_aktuelles_quartal} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'stunden_aktuelles_jahr')} value={record.fields.stunden_aktuelles_jahr} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'stunden_letzter_monat')} value={record.fields.stunden_letzter_monat} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'stunden_letztes_quartal')} value={record.fields.stunden_letztes_quartal} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'stunden_letztes_jahr')} value={record.fields.stunden_letztes_jahr} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'leistungen')} value={Array.isArray(record.fields.leistungen) ? record.fields.leistungen.map((u: unknown) => leistungskatalogList.find(t => t.record_id === extractRecordId(u))?.fields.leistungsbezeichnung ?? '—').join(', ') : null} format="text" />
+        <RecordField label={fieldLabel('berater/innen', 'projekte')} value={Array.isArray(record.fields.projekte) ? record.fields.projekte.map((u: unknown) => projekteList.find(t => t.record_id === extractRecordId(u))?.fields.projektkennung ?? '—').join(', ') : null} format="text" />
+      </RecordSection>
+
+      <SatelliteSection
+        title={appLabel('leistungskatalog')}
+        items={leistungskatalogList.filter(r => Array.isArray(r.fields.berater) && r.fields.berater.some((u: unknown) => extractRecordId(u) === record.record_id))}
+        map={r => ({ name: r.fields.leistungsbezeichnung ?? appLabel('leistungskatalog'), meta: undefined })}
+        onOpen={onOpenLeistungskatalog}
+        onAdd={onAddLeistungskatalog}
+        getKey={r => r.record_id}
+      />
+
+      <SatelliteSection
+        title={appLabel('projekte')}
+        items={projekteList.filter(r => extractRecordId(r.fields.projektleitung) === record.record_id)}
+        map={r => ({ name: r.fields.projektkennung ?? appLabel('projekte'), meta: r.fields.projektende })}
+        onOpen={onOpenProjekte}
+        onAdd={onAddProjekte}
+        getKey={r => r.record_id}
+      />
+
+      <SatelliteSection
+        title={appLabel('zeiterfassung')}
+        items={zeiterfassungList.filter(r => extractRecordId(r.fields.berater) === record.record_id)}
+        map={r => ({ name: r.fields.jahr ?? appLabel('zeiterfassung'), meta: r.fields.datum })}
+        onOpen={onOpenZeiterfassung}
+        onAdd={onAddZeiterfassung}
+        getKey={r => r.record_id}
+      />
+
+      <SatelliteSection
+        title={appLabel('rechnungen')}
+        items={rechnungenList.filter(r => Array.isArray(r.fields.berater) && r.fields.berater.some((u: unknown) => extractRecordId(u) === record.record_id))}
+        map={r => ({ name: r.fields.rechnungsnummer ?? appLabel('rechnungen'), meta: r.fields.rechnungsdatum })}
+        onOpen={onOpenRechnungen}
+        onAdd={onAddRechnungen}
+        getKey={r => r.record_id}
+      />
+
+      <RecordAttachments appId={APP_IDS['BERATER/INNEN']} recordId={record.record_id} />
+    </>
+  );
+}
