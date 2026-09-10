@@ -231,8 +231,8 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
       setScanSuccess(false);
       setAiText('');
       setSubmitError(null);
-      // Automatik nur im Erstellen-Modus (kein recordId, keine vorhandene Kennung)
-      setKennungIsAuto(!recordId && !defaultValues?.projektkennung);
+      // Automatik immer im Erstellen-Modus, nie im Edit-Modus
+      setKennungIsAuto(!recordId);
     }
   }, [open, normalizedDefaults]);
   // Automatische Projektkennung: Jahr-KÜRZEL-NNN
