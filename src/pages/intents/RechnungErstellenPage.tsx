@@ -19,7 +19,7 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import type { Projekte, Zeiterfassung } from '@/types/app';
 import { APP_IDS, LOOKUP_OPTIONS } from '@/types/app';
 import { LivingAppsService, createRecordUrl, extractRecordId } from '@/services/livingAppsService';
-import { formatDate } from '@/lib/formatters';
+import { formatDate, lookupKey } from '@/lib/formatters';
 import { tx } from '@/i18n';
 
 const RECHNUNGSSTATUS_OPTIONS = LOOKUP_OPTIONS['rechnungen']?.['rechnungsstatus'] ?? [];
@@ -28,9 +28,18 @@ const ABRECHNUNGSMONAT_OPTIONS = LOOKUP_OPTIONS['rechnungen']?.['abrechnungsmona
 export default function RechnungErstellenPage() {
   const { projekte, kunden, zeiterfassung, rechnungen, loading, error, fetchAll } = useDashboardData();
   const location = useLocation();
-  const initState = location.state as { projektId?: string; monatKey?: string; jahr?: string; initialStep?: number } | null;
+  const searchParams = new URLSearchParams(location.search);
+  const urlProjektId = searchParams.get('projekt');
+  const urlStep = searchParams.get('step') ? parseInt(searchParams.get('step')!, 10) : null;
+  // filterByPeriod: when project comes from URL, step 2 shows only entries matching the billing period
+  const filterByPeriod = urlProjektId !== null;
 
-  const [step, setStep] = useState(initState?.initialStep ?? 1);
+  const initState = location.state as { projektId?: string; monatKey?: string; jahr?: string; initialStep?: number } | null;
+  // URL params take precedence over router state
+  const initProjektId = urlProjektId ?? initState?.projektId ?? null;
+  const initStep = urlStep ?? initState?.initialStep ?? 1;
+
+  const [step, setStep] = useState(initStep);
 
   // Step 1 state
   const [selectedProjekt, setSelectedProjekt] = useState<Projekte | null>(null);
@@ -54,16 +63,36 @@ export default function RechnungErstellenPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdRechnungId, setCreatedRechnungId] = useState<string | null>(null);
 
-  // Pre-select project from router state (e.g. from ProjektDetailPage "Rechnung erstellen")
+  // Pre-select project from URL param or router state; compute billing period from oldest unbilled entry
   useEffect(() => {
-    if (!initState?.projektId || !projekte.length) return;
-    const found = projekte.find(p => p.record_id === initState.projektId);
-    if (found) {
-      setSelectedProjekt(found);
-      const kundeId = extractRecordId(found.fields.kunde);
-      setSelectedKundeId(kundeId);
+    if (!initProjektId || !projekte.length) return;
+    const found = projekte.find(p => p.record_id === initProjektId);
+    if (!found) return;
+    setSelectedProjekt(found);
+    setSelectedKundeId(extractRecordId(found.fields.kunde));
+
+    // When coming from URL (no explicit monatKey in state), compute oldest unbilled entry
+    if (filterByPeriod && !initState?.monatKey && zeiterfassung.length > 0) {
+      const projektZeit = zeiterfassung.filter(
+        ze => extractRecordId(ze.fields.projekt) === initProjektId && ze.fields.verrechenbar === true
+      );
+      const unabgerechnet = projektZeit.filter(z =>
+        !rechnungen.some(r =>
+          lookupKey(r.fields.abrechnungsmonat) === lookupKey(z.fields.monat) &&
+          r.fields.abrechnungsjahr === z.fields.jahr &&
+          lookupKey(r.fields.rechnungsstatus) !== 'storniert'
+        )
+      );
+      const oldest = [...unabgerechnet].sort((a, b) =>
+        (a.fields.datum ?? '') < (b.fields.datum ?? '') ? -1 : 1
+      )[0];
+      if (oldest) {
+        const monatK = lookupKey(oldest.fields.monat);
+        if (monatK) setAbrechnungsmonat(monatK);
+        if (oldest.fields.jahr) setAbrechnungsjahr(oldest.fields.jahr);
+      }
     }
-  }, [projekte]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [projekte, zeiterfassung, rechnungen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-generate Rechnungsnummer when reaching step 3 and field is still empty
   useEffect(() => {
@@ -76,11 +105,16 @@ export default function RechnungErstellenPage() {
   // Derived: active projects only
   const aktiveProjekte = projekte.filter(p => p.fields.status?.key === 'in_bearbeitung');
 
-  // Derived: billable time entries for selected project
+  // Derived: billable time entries for selected project (filtered by period when from URL params)
   const projektZeiterfassung: Zeiterfassung[] = selectedProjekt
-    ? zeiterfassung.filter(
-        ze => extractRecordId(ze.fields.projekt) === selectedProjekt.record_id && ze.fields.verrechenbar === true
-      )
+    ? zeiterfassung.filter(ze => {
+        if (extractRecordId(ze.fields.projekt) !== selectedProjekt.record_id) return false;
+        if (!ze.fields.verrechenbar) return false;
+        if (filterByPeriod) {
+          return lookupKey(ze.fields.monat) === abrechnungsmonat && ze.fields.jahr === abrechnungsjahr;
+        }
+        return true;
+      })
     : [];
 
   const gesamtStunden = projektZeiterfassung.reduce((sum, ze) => sum + (ze.fields.stunden ?? 0), 0);

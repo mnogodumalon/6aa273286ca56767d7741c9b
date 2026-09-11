@@ -300,18 +300,11 @@ export default function ProjektDetailPage() {
   };
 
   const navigateToStundenErfassen = () => {
-    navigate('/intents/stunden-erfassen', { state: { projektId: id } });
+    navigate(`/intents/stunden-erfassen?projekt=${id}`);
   };
 
   const navigateToRechnungErstellen = () => {
-    navigate('/intents/rechnung-erstellen', {
-      state: {
-        projektId: id,
-        monatKey: oldestUnbilledEntry ? lookupKey(oldestUnbilledEntry.fields.monat) : undefined,
-        jahr: oldestUnbilledEntry?.fields.jahr,
-        initialStep: 2,
-      },
-    });
+    navigate(`/intents/rechnung-erstellen?step=2&projekt=${id}`);
   };
 
   // ── Early returns ──

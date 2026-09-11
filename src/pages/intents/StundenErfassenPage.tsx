@@ -37,7 +37,12 @@ const BERATER_APP_ID = APP_IDS['BERATER/INNEN' as keyof typeof APP_IDS] ?? '6aa2
 export default function StundenErfassenPage() {
   const { beraterInnen, projekte, leistungskatalog, loading, error, fetchAll } = useDashboardData();
   const location = useLocation();
-  const initProjektId = (location.state as { projektId?: string } | null)?.projektId;
+  const searchParams = new URLSearchParams(location.search);
+  const urlProjektId = searchParams.get('projekt');
+  // URL param takes precedence, fallback to router state (backwards compat)
+  const initProjektId = urlProjektId ?? (location.state as { projektId?: string } | null)?.projektId ?? null;
+  // When project comes from URL, skip step 2 project selection after berater is chosen
+  const skipToStep3 = urlProjektId !== null;
 
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -216,7 +221,7 @@ export default function StundenErfassenPage() {
           onSelect={(id) => {
             const found = aktiveBerater.find(b => b.record_id === id) ?? null;
             setSelectedBerater(found);
-            setStep(2);
+            setStep(skipToStep3 ? 3 : 2);
           }}
           searchPlaceholder={tx('Berater/in suchen …')}
           emptyText={tx('Keine aktiven Berater/innen gefunden')}
