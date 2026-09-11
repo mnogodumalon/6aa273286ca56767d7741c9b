@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   IconWorld, IconCheck, IconLink, IconExternalLink, IconLoader2, IconAlertTriangle,
-  IconAdjustments, IconEye, IconTicket,
+  IconAdjustments, IconEye, IconTicket, IconPencil, IconTrash, IconPlus,
 } from '@tabler/icons-react';
 import { PageShell } from '@/components/PageShell';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,10 @@ import {
   listPublicPages, setPublished, getFields, updateFields, getShareLinks,
   type PublicPageSummary, type FieldCatalogEntry, type ShareLink,
 } from '@/lib/publicPagesAdmin';
+import { PageJobDialog, type PageJobTarget } from '@/components/PageJobDialog';
+import { JobStateBadge, JobStateRow } from '@/components/PageJobStatus';
+import { usePageJobs } from '@/hooks/usePageJobs';
+import { dismissPageJob, type PageOp, type PageJobRecord } from '@/lib/pageJobs';
 import { t } from '@/i18n';
 
 // Owner-facing management of the dashboard's public pages. Same-origin fetch
@@ -58,6 +62,16 @@ export default function PublicPagesAdmin() {
   // bare URL, so the owner picks the record here and copies THAT link.
   const [linksSlug, setLinksSlug] = useState<string | null>(null);
   const [links, setLinks] = useState<ShareLink[]>([]);
+  // Agent jobs: a new page from a prompt, a change to an existing one, a removal.
+  const [job, setJob] = useState<{ op: PageOp; target?: PageJobTarget; initialPrompt?: string } | null>(null);
+  const { jobs, refresh: refreshJobs } = usePageJobs('public');
+  const createJobs = jobs.filter(j => !j.target && j.status !== 'done');
+  const jobFor = (slug: string) => jobs.find(j => j.target === slug && j.status !== 'done');
+  const retryJob = (j: PageJobRecord) => {
+    const target = j.target ? { slug: j.target, title: pages[j.target]?.title ?? j.target } : undefined;
+    setJob({ op: j.op, target, initialPrompt: j.prompt });
+    dismissPageJob(j.id).catch(() => undefined).then(() => void refreshJobs());
+  };
   const [linksLoading, setLinksLoading] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
@@ -168,7 +182,16 @@ export default function PublicPagesAdmin() {
   const caps = confirmPage ? capabilities(confirmPage) : {};
 
   return (
-    <PageShell title={t('ppa_title')} subtitle={t('ppa_subtitle')}>
+    <PageShell
+      title={t('ppa_title')}
+      subtitle={t('ppa_subtitle')}
+      action={(
+        <Button onClick={() => setJob({ op: 'create' })}>
+          <IconPlus size={16} stroke={1.5} className="mr-1" />
+          {t('ppa_new_agent')}
+        </Button>
+      )}
+    >
       {error ? (
         <div className="flex items-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
           <IconAlertTriangle size={18} stroke={1.5} className="shrink-0" />
@@ -180,12 +203,15 @@ export default function PublicPagesAdmin() {
         <div className="flex justify-center py-16">
           <IconLoader2 size={28} stroke={1.5} className="animate-spin text-muted-foreground" />
         </div>
-      ) : entries.length === 0 ? (
+      ) : entries.length === 0 && createJobs.length === 0 ? (
         <div className="rounded-[27px] bg-card shadow-lg p-8 text-center text-muted-foreground">
           {t('ppa_empty')}
         </div>
       ) : (
         <div className="rounded-[27px] bg-card shadow-lg overflow-hidden divide-y divide-border">
+          {createJobs.map(j => (
+            <JobStateRow key={j.id} job={j} onRetry={retryJob} onDismissed={() => void refreshJobs()} />
+          ))}
           {entries.map(page => (
             <div key={page.slug} className="flex items-center gap-4 px-6 py-4 min-w-0">
               <IconWorld size={20} stroke={1.5} className="shrink-0 text-muted-foreground" />
@@ -195,6 +221,10 @@ export default function PublicPagesAdmin() {
                   <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground">
                     {originLabel(page.origin)}
                   </span>
+                  {jobFor(page.slug) ? <JobStateBadge job={jobFor(page.slug)!} /> : null}
+                  {jobFor(page.slug)?.status === 'failed' ? (
+                    <button type="button" onClick={() => retryJob(jobFor(page.slug)!)} className="shrink-0 text-xs text-primary underline underline-offset-2">{t('pj_retry')}</button>
+                  ) : null}
                 </div>
                 <span className={`text-xs ${page.published ? 'text-primary' : 'text-muted-foreground'}`}>
                   {page.published ? t('ppa_status_published') : t('ppa_status_draft')}
@@ -245,6 +275,25 @@ export default function PublicPagesAdmin() {
                 </button>
               ) : null}
 
+              <button
+                type="button"
+                title={t('ppa_edit_agent')}
+                aria-label={t('ppa_edit_agent')}
+                onClick={() => setJob({ op: 'edit', target: { slug: page.slug, title: page.title } })}
+                className="shrink-0 p-2 rounded-xl text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <IconPencil size={18} stroke={1.5} />
+              </button>
+              <button
+                type="button"
+                title={t('ppa_delete')}
+                aria-label={t('ppa_delete')}
+                onClick={() => setJob({ op: 'delete', target: { slug: page.slug, title: page.title } })}
+                className="shrink-0 p-2 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              >
+                <IconTrash size={18} stroke={1.5} />
+              </button>
+
               {page.type !== 'custom' ? (
                 <button
                   type="button"
@@ -278,6 +327,17 @@ export default function PublicPagesAdmin() {
           ))}
         </div>
       )}
+
+      <PageJobDialog
+        open={job !== null}
+        onOpenChange={v => !v && setJob(null)}
+        kind="public"
+        op={job?.op ?? 'create'}
+        target={job?.target}
+        initialPrompt={job?.initialPrompt}
+        onStarted={() => void refreshJobs()}
+        onDone={() => { void load(); void refreshJobs(); }}
+      />
 
       <Dialog open={!!confirmPage} onOpenChange={v => !v && setConfirmSlug(null)}>
         <DialogContent>

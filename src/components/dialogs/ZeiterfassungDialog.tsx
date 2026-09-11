@@ -30,6 +30,7 @@ import type { ComputedContext } from '@/config/form-enhancements/types';
 import { applyFieldOrder, flattenFieldOrder, applyDefaults, evalComputed, numberInputProps, clampNumberValue, classifyComputed, extractApplookupRefs, mergeApplookupRefs, resolveApplookupRef } from '@/config/form-enhancements/types';
 import { formEnhancements, computedDeps, computedApplookupRefs } from '@/config/form-enhancements/Zeiterfassung';
 import { AttachmentsSection } from '@/components/AttachmentsSection';
+import { requiredMessage } from '@/lib/journey/messages';
 import { t, appLabel, fieldLabel, lookupLabel, localeTag, CURRENCY } from '@/i18n';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -75,7 +76,7 @@ const NORMALIZE_LOOKUPS: Record<string, readonly { key: string; label: string }[
   monat: LOOKUP_OPTIONS['zeiterfassung']?.['monat'] ?? [],
 };
 const NORMALIZE_APPLOOKUPS: Record<string, string> = {
-  berater: APP_IDS['BERATER/INNEN'],
+  berater: APP_IDS.BERATERINNEN,
   projekt: APP_IDS.PROJEKTE,
   leistung: APP_IDS.LEISTUNGSKATALOG,
 };
@@ -344,7 +345,7 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
         const beraterName = raw['berater'] as string | null;
         if (beraterName) {
           const beraterMatch = beraterInnenList.find(r => matchName(beraterName!, [[r.fields.vorname ?? '', r.fields.nachname ?? ''].filter(Boolean).join(' ')]));
-          if (beraterMatch) merged['berater'] = createRecordUrl(APP_IDS['BERATER/INNEN'], beraterMatch.record_id);
+          if (beraterMatch) merged['berater'] = createRecordUrl(APP_IDS.BERATERINNEN, beraterMatch.record_id);
         }
         const projektName = raw['projekt'] as string | null;
         if (projektName) {
@@ -407,14 +408,14 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
         <Label htmlFor="datum">{fieldLabel('zeiterfassung', 'datum')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <DatePicker
           id="datum"
-          placeholder="Welcher Tag?"
+          placeholder=""
           mode="date"
           value={fields.datum ?? null}
           onChange={v => setFields(f => ({ ...f, datum: v ?? undefined }))}
           required
         />
         {showErrors && !fields.datum && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('zeiterfassung', 'datum')}</p>
         )}
       </div>
     ),
@@ -424,14 +425,15 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
         <Input
           id="stunden"
           type="number"
+          inputMode="decimal"
           step="any"
           {...numberInputProps(formEnhancements, 'stunden')}
-          placeholder="z. B. 8"
+          placeholder=""
           value={fields.stunden !== undefined ? fields.stunden : (computedValues['stunden'] ?? '')}
           onChange={e => setFields(f => ({ ...f, stunden: clampNumberValue(formEnhancements, 'stunden', e.target.value) }))}
         />
         {showErrors && !fields.stunden && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('zeiterfassung', 'stunden')}</p>
         )}
       </div>
     ),
@@ -442,7 +444,7 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
           value={lookupKey(fields.monat) ?? ''}
           onValueChange={v => setFields(f => ({ ...f, monat: v === 'none' ? undefined : v as any }))}
         >
-          <SelectTrigger id="monat" className="max-sm:h-11"><SelectValue placeholder="z. B. Januar, Februar" /></SelectTrigger>
+          <SelectTrigger id="monat" className="max-sm:h-11"><SelectValue placeholder="" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">—</SelectItem>
             <SelectItem value="januar">{lookupLabel('zeiterfassung', 'monat', 'januar') ?? 'Januar'}</SelectItem>
@@ -460,7 +462,7 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
           </SelectContent>
         </Select>
         {showErrors && !fields.monat && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('zeiterfassung', 'monat')}</p>
         )}
       </div>
     ),
@@ -469,13 +471,13 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
         <Label htmlFor="jahr">{fieldLabel('zeiterfassung', 'jahr')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Input
           id="jahr"
-          placeholder="z. B. 2024"
+          placeholder=""
           value={fields.jahr ?? ''}
           onChange={e => setFields(f => ({ ...f, jahr: e.target.value }))}
           required
         />
         {showErrors && !fields.jahr && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('zeiterfassung', 'jahr')}</p>
         )}
       </div>
     ),
@@ -484,7 +486,7 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
         <Label htmlFor="taetigkeitsbeschreibung">{fieldLabel('zeiterfassung', 'taetigkeitsbeschreibung')}</Label>
         <Textarea
           id="taetigkeitsbeschreibung"
-          placeholder="Was wurde gemacht..."
+          placeholder=""
           value={fields.taetigkeitsbeschreibung ?? ''}
           onChange={e => setFields(f => ({ ...f, taetigkeitsbeschreibung: e.target.value }))}
           rows={3}
@@ -509,7 +511,7 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
         <Label htmlFor="notizen">{fieldLabel('zeiterfassung', 'notizen')}</Label>
         <Textarea
           id="notizen"
-          placeholder="Besonderheiten, Notizen..."
+          placeholder=""
           value={fields.notizen ?? ''}
           onChange={e => setFields(f => ({ ...f, notizen: e.target.value }))}
           rows={3}
@@ -521,18 +523,18 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
         <Label htmlFor="berater">{fieldLabel('zeiterfassung', 'berater')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Combobox
           id="berater"
-          placeholder="Wer hat gearbeitet?"
+          placeholder=""
           items={beraterInnenListAll.map(r => ({
             id: r.record_id,
             label: String(r.fields.nachname ?? r.record_id),
           }))}
           value={extractRecordId(fields.berater)}
-          onChange={id => setFields(f => ({ ...f, berater: id ? createRecordUrl(APP_IDS['BERATER/INNEN'], id) : undefined }))}
+          onChange={id => setFields(f => ({ ...f, berater: id ? createRecordUrl(APP_IDS.BERATERINNEN, id) : undefined }))}
           onCreateNew={(q) => openCreateBeraterInnen("berater", q)}
           createLabel={t('create_in', { entity: appLabel('berater/innen') })}
         />
         {showErrors && !fields.berater && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('zeiterfassung', 'berater')}</p>
         )}
       </div>
     ),
@@ -541,7 +543,7 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
         <Label htmlFor="projekt">{fieldLabel('zeiterfassung', 'projekt')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Combobox
           id="projekt"
-          placeholder="Für welches Projekt?"
+          placeholder=""
           items={projekteListAll.map(r => ({
             id: r.record_id,
             label: String(r.fields.projektkennung ?? r.record_id),
@@ -552,7 +554,7 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
           createLabel={t('create_in', { entity: appLabel('projekte') })}
         />
         {showErrors && !fields.projekt && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('zeiterfassung', 'projekt')}</p>
         )}
       </div>
     ),
@@ -561,7 +563,7 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
         <Label htmlFor="leistung">{fieldLabel('zeiterfassung', 'leistung')}</Label>
         <Combobox
           id="leistung"
-          placeholder="Welche Leistung erbracht?"
+          placeholder=""
           items={leistungskatalogListAll.map(r => ({
             id: r.record_id,
             label: String(r.fields.leistungsbezeichnung ?? r.record_id),
@@ -593,7 +595,7 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
   // eine Map { lookupKey: label } für ALLE Felder des Target-Schemas. Wird
   // beim Render-Walk gefiltert auf die in der computed-Formel tatsächlich
   // referenzierten lookupKeys (siehe applookupRefs unten).
-  const APPLOOKUP_LABELS: Record<string, Record<string, string>> = {"berater": {"nachname": "Nachname", "vorname": "Vorname", "titel": "Titel (optional)", "strasse": "Straße", "hausnummer": "Hausnummer", "plz": "Postleitzahl", "ort": "Ort", "email_beruflich": "E-Mail (beruflich)", "email_privat": "E-Mail (privat)", "telefon": "Telefon", "einstiegsdatum": "Einstiegsdatum", "status": "Status", "stundensatz": "Stundensatz (€/h)", "sonstiges_1": "Sonstige Anmerkungen (1)", "sonstiges_2": "Sonstige Anmerkungen (2)", "stunden_aktueller_monat": "Gebuchte Stunden – aktueller Monat", "stunden_aktuelles_quartal": "Gebuchte Stunden – aktuelles Quartal", "stunden_aktuelles_jahr": "Gebuchte Stunden – aktuelles Jahr", "stunden_letzter_monat": "Gebuchte Stunden – letzter Monat", "stunden_letztes_quartal": "Gebuchte Stunden – letztes Quartal", "stunden_letztes_jahr": "Gebuchte Stunden – letztes Jahr", "leistungen": "Erbringbare Leistungen", "projekte": "Aktuell zugewiesene Projekte"}, "projekt": {"projektkennung": "Projektkennung", "projektnummer": "Projektnummer", "projektart": "Projektart", "projektstart_jahr": "Startjahr", "projektstart_monat": "Startmonat", "status": "Projektstatus", "ansprechpartner_kunde": "Ansprechpartner beim Kunden", "letzter_schritt": "Letzter Schritt / aktueller Stand", "projektende": "Geplantes Projektende", "notizen": "Notizen", "kunde": "Kunde", "projektleitung": "Projektleitung"}, "leistung": {"berater": "Ausführende Berater/innen", "leistungsbezeichnung": "Leistungsbezeichnung", "leistungstyp": "Leistungstyp", "beschreibung": "Beschreibung", "kostenvoranschlag": "Normaler Kostenvoranschlag (€)", "stundensatz_leistung": "Stundensatz für diese Leistung (€/h)", "einheit": "Abrechnungseinheit", "verfuegbarkeit": "Verfügbarkeit / Hinweise"}};
+  const APPLOOKUP_LABELS: Record<string, Record<string, string>> = {"berater": {"nachname": "Nachname", "vorname": "Vorname", "titel": "Titel (optional)", "strasse": "Straße", "hausnummer": "Hausnummer", "plz": "Postleitzahl", "ort": "Ort", "email_beruflich": "E-Mail (beruflich)", "email_privat": "E-Mail (privat)", "telefon": "Telefon", "einstiegsdatum": "Einstiegsdatum", "status": "Status", "stundensatz": "Stundensatz (€/h)", "sonstiges_1": "Sonstige Anmerkungen (1)", "sonstiges_2": "Sonstige Anmerkungen (2)", "stunden_aktueller_monat": "Gebuchte Stunden – aktueller Monat", "stunden_aktuelles_quartal": "Gebuchte Stunden – aktuelles Quartal", "stunden_aktuelles_jahr": "Gebuchte Stunden – aktuelles Jahr", "stunden_letzter_monat": "Gebuchte Stunden – letzter Monat", "stunden_letztes_quartal": "Gebuchte Stunden – letztes Quartal", "stunden_letztes_jahr": "Gebuchte Stunden – letztes Jahr", "leistungen": "Erbringbare Leistungen", "projekte": "Aktuell zugewiesene Projekte"}, "projekt": {"budget": "Budget (€)", "projektkennung": "Projektkennung", "projektnummer": "Projektnummer", "projektart": "Projektart", "projektstart_jahr": "Startjahr", "projektstart_monat": "Startmonat", "status": "Projektstatus", "ansprechpartner_kunde": "Ansprechpartner beim Kunden", "letzter_schritt": "Letzter Schritt / aktueller Stand", "projektende": "Geplantes Projektende", "notizen": "Notizen", "kunde": "Kunde", "projektleitung": "Projektleitung"}, "leistung": {"berater": "Ausführende Berater/innen", "leistungsbezeichnung": "Leistungsbezeichnung", "leistungstyp": "Leistungstyp", "beschreibung": "Beschreibung", "kostenvoranschlag": "Normaler Kostenvoranschlag (€)", "stundensatz_leistung": "Stundensatz für diese Leistung (€/h)", "einheit": "Abrechnungseinheit", "verfuegbarkeit": "Verfügbarkeit / Hinweise"}};
   const inputFields = useMemo(() => flattenFieldOrder(orderedFields), [orderedFieldsKey]);
   const backendFieldSet = useMemo(() => new Set(inputFields), [inputFields.join(',')]);
   const virtualComputed = useMemo(
@@ -967,7 +969,7 @@ export function ZeiterfassungDialog({ open, onClose, onSubmit, defaultValues, re
           if (result?.id) {
             const newRec = { record_id: result.id, fields: newFields } as unknown as BeraterInnen;
             setExtraBeraterInnen(prev => [...prev, newRec]);
-            const url = createRecordUrl(APP_IDS['BERATER/INNEN'], result.id);
+            const url = createRecordUrl(APP_IDS.BERATERINNEN, result.id);
             setFields(prev => ({ ...prev, [createBeraterInnenField]: url } as any));
           }
           setCreateBeraterInnenOpen(false);

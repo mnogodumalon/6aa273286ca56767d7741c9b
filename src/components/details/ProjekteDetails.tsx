@@ -1,4 +1,4 @@
-import type { Projekte, Kunden, BeraterInnen, Angebote, Zeiterfassung, Rechnungen } from '@/types/app';
+import type { Projekte, Kunden, BeraterInnen, Zeiterfassung, Rechnungen, Angebote } from '@/types/app';
 import { APP_IDS } from '@/types/app';
 import { extractRecordId } from '@/services/livingAppsService';
 import {
@@ -10,24 +10,18 @@ import { SatelliteSection } from '@/components/SatelliteSection';
 export interface ProjekteDetailsProps {
   /** Der Record — enriched oder roh; alle Felder werden hier gerendert. */
   record: Projekte;
-  /** Liste für Kunden-Zuordnungen und Satelliten. */
+  /** N:1-Ziel „Kunden": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   kundenList: Kunden[];
-  /** Zeilen-Klick → overlay.push auf das Kunden-Detail. */
+  /** Klick auf die Kunden-Relation → overlay.push auf dessen Detail. */
   onOpenKunden: (record: Kunden) => void;
   /** Kontextuelles „+": öffnet den Kunden-Dialog mit diesem Record vorgesetzt. */
   onAddKunden: () => void;
-  /** Liste für BeraterInnen-Zuordnungen und Satelliten. */
+  /** N:1-Ziel „BeraterInnen": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   beraterInnenList: BeraterInnen[];
-  /** Zeilen-Klick → overlay.push auf das BeraterInnen-Detail. */
+  /** Klick auf die BeraterInnen-Relation → overlay.push auf dessen Detail. */
   onOpenBeraterInnen: (record: BeraterInnen) => void;
   /** Kontextuelles „+": öffnet den BeraterInnen-Dialog mit diesem Record vorgesetzt. */
   onAddBeraterInnen: () => void;
-  /** 1:N „Angebote" (projekt): VOLLE Liste — der Block filtert auf diesen Record. */
-  angeboteList: Angebote[];
-  /** Zeilen-Klick → overlay.push auf das Angebote-Detail (nie der Edit-Dialog). */
-  onOpenAngebote: (record: Angebote) => void;
-  /** Kontextuelles „+": öffnet den Angebote-Dialog mit diesem Record vorgesetzt. */
-  onAddAngebote: () => void;
   /** 1:N „Zeiterfassung" (projekt): VOLLE Liste — der Block filtert auf diesen Record. */
   zeiterfassungList: Zeiterfassung[];
   /** Zeilen-Klick → overlay.push auf das Zeiterfassung-Detail (nie der Edit-Dialog). */
@@ -40,6 +34,12 @@ export interface ProjekteDetailsProps {
   onOpenRechnungen: (record: Rechnungen) => void;
   /** Kontextuelles „+": öffnet den Rechnungen-Dialog mit diesem Record vorgesetzt. */
   onAddRechnungen: () => void;
+  /** 1:N „Angebote" (projekt): VOLLE Liste — der Block filtert auf diesen Record. */
+  angeboteList: Angebote[];
+  /** Zeilen-Klick → overlay.push auf das Angebote-Detail (nie der Edit-Dialog). */
+  onOpenAngebote: (record: Angebote) => void;
+  /** Kontextuelles „+": öffnet den Angebote-Dialog mit diesem Record vorgesetzt. */
+  onAddAngebote: () => void;
 }
 
 export function ProjekteDetails({
@@ -50,21 +50,22 @@ export function ProjekteDetails({
   beraterInnenList,
   onOpenBeraterInnen,
   onAddBeraterInnen,
-  angeboteList,
-  onOpenAngebote,
-  onAddAngebote,
   zeiterfassungList,
   onOpenZeiterfassung,
   onAddZeiterfassung,
   rechnungenList,
   onOpenRechnungen,
   onAddRechnungen,
+  angeboteList,
+  onOpenAngebote,
+  onAddAngebote,
 }: ProjekteDetailsProps) {
   const kundeTarget = kundenList.find(r => r.record_id === extractRecordId(record.fields.kunde));
   const projektleitungTarget = beraterInnenList.find(r => r.record_id === extractRecordId(record.fields.projektleitung));
   return (
     <>
       <RecordSection title={t('details')} cols={2}>
+        <RecordField label={fieldLabel('projekte', 'budget')} value={record.fields.budget} format="text" />
         <RecordField label={fieldLabel('projekte', 'projektkennung')} value={record.fields.projektkennung} format="text" />
         <RecordField label={fieldLabel('projekte', 'projektnummer')} value={record.fields.projektnummer} format="text" />
         <RecordField label={fieldLabel('projekte', 'projektart')} value={record.fields.projektart} format="pill" />
@@ -83,42 +84,15 @@ export function ProjekteDetails({
           label={fieldLabel('projekte', 'kunde')}
           name={kundeTarget?.fields.kundenname ?? '—'}
           meta={[kundeTarget?.fields.email, kundeTarget?.fields.telefon].filter(Boolean).join(' · ') || undefined}
-          onClick={kundeTarget && onOpenKunden ? () => onOpenKunden!(kundeTarget!) : undefined}
+          onClick={kundeTarget ? () => onOpenKunden(kundeTarget!) : undefined}
         />
         <RecordRelation
           label={fieldLabel('projekte', 'projektleitung')}
           name={projektleitungTarget?.fields.nachname ?? '—'}
           meta={[projektleitungTarget?.fields.email_beruflich, projektleitungTarget?.fields.email_privat].filter(Boolean).join(' · ') || undefined}
-          onClick={projektleitungTarget && onOpenBeraterInnen ? () => onOpenBeraterInnen!(projektleitungTarget!) : undefined}
+          onClick={projektleitungTarget ? () => onOpenBeraterInnen(projektleitungTarget!) : undefined}
         />
       </RecordSection>
-
-      <SatelliteSection
-        title={appLabel('berater/innen')}
-        items={beraterInnenList.filter(r => Array.isArray(r.fields.projekte) && r.fields.projekte.some((u: unknown) => extractRecordId(u) === record.record_id))}
-        map={r => ({ name: r.fields.nachname ?? appLabel('berater/innen'), meta: r.fields.einstiegsdatum })}
-        onOpen={onOpenBeraterInnen}
-        onAdd={onAddBeraterInnen}
-        getKey={r => r.record_id}
-      />
-
-      <SatelliteSection
-        title={appLabel('kunden')}
-        items={kundenList.filter(r => Array.isArray(r.fields.laufende_projekte) && r.fields.laufende_projekte.some((u: unknown) => extractRecordId(u) === record.record_id))}
-        map={r => ({ name: r.fields.kundenname ?? appLabel('kunden'), meta: r.fields.anlagedatum })}
-        onOpen={onOpenKunden}
-        onAdd={onAddKunden}
-        getKey={r => r.record_id}
-      />
-
-      <SatelliteSection
-        title={appLabel('angebote')}
-        items={angeboteList.filter(r => extractRecordId(r.fields.projekt) === record.record_id)}
-        map={r => ({ name: r.fields.angebotsnummer ?? appLabel('angebote'), meta: r.fields.angebotsdatum })}
-        onOpen={onOpenAngebote}
-        onAdd={onAddAngebote}
-        getKey={r => r.record_id}
-      />
 
       <SatelliteSection
         title={appLabel('zeiterfassung')}
@@ -135,6 +109,33 @@ export function ProjekteDetails({
         map={r => ({ name: r.fields.rechnungsnummer ?? appLabel('rechnungen'), meta: r.fields.rechnungsdatum })}
         onOpen={onOpenRechnungen}
         onAdd={onAddRechnungen}
+        getKey={r => r.record_id}
+      />
+
+      <SatelliteSection
+        title={appLabel('kunden')}
+        items={kundenList.filter(r => Array.isArray(r.fields.laufende_projekte) && r.fields.laufende_projekte.some((u: unknown) => extractRecordId(u) === record.record_id))}
+        map={r => ({ name: r.fields.kundenname ?? appLabel('kunden'), meta: r.fields.anlagedatum })}
+        onOpen={onOpenKunden}
+        onAdd={onAddKunden}
+        getKey={r => r.record_id}
+      />
+
+      <SatelliteSection
+        title={appLabel('berater/innen')}
+        items={beraterInnenList.filter(r => Array.isArray(r.fields.projekte) && r.fields.projekte.some((u: unknown) => extractRecordId(u) === record.record_id))}
+        map={r => ({ name: r.fields.nachname ?? appLabel('berater/innen'), meta: r.fields.einstiegsdatum })}
+        onOpen={onOpenBeraterInnen}
+        onAdd={onAddBeraterInnen}
+        getKey={r => r.record_id}
+      />
+
+      <SatelliteSection
+        title={appLabel('angebote')}
+        items={angeboteList.filter(r => extractRecordId(r.fields.projekt) === record.record_id)}
+        map={r => ({ name: r.fields.angebotsnummer ?? appLabel('angebote'), meta: r.fields.angebotsdatum })}
+        onOpen={onOpenAngebote}
+        onAdd={onAddAngebote}
         getKey={r => r.record_id}
       />
 

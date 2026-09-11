@@ -80,3 +80,5 @@ Erfassung aller Stunden der Mitarbeitenden, die monatlich in den Projekten abger
 
 Rechnungen
 Auf der Basis der Berater, der Zeiterfassung und der Projekte sollen Rechnungen generiert werden, die in einer zeitlich strukturierten Exceltabelle erfasst und dargestellt werden
+
+Ergänze in der App „Angebote“ ein Auswahlfeld „Angebotsstatus“ mit den Werten Offen, Gesendet, Angenommen, Abgelehnt, Standard Offen. Ergänze in der App „Projekte“ ein Zahlenfeld „Budget (€)“ für die Auftragssumme aus dem angenommenen Angebot. Bestehende Datensätze bleiben unverändert, vorhandene Angebote bekommen den Status Offen.

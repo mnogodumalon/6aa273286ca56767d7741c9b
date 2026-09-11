@@ -3,8 +3,8 @@
  *
  * Props: open, onClose, onSubmit(fields) => Promise<void>, defaultValues?,
  * recordId? (pass when EDITING — enables the attachments section),
- * projekteList (full hook array — resolves the Projekte applookup),
  * kundenList (full hook array — resolves the Kunden applookup),
+ * projekteList (full hook array — resolves the Projekte applookup),
  * enablePhotoScan?, enablePhotoLocation?.
  *
  * defaultValues is SHAPE-TOLERANT and its prop type is the EXPORTED
@@ -15,7 +15,7 @@
  *  ✓ useState<AngeboteDialogDefaults | undefined>(undefined)
  */
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import type { Angebote, Projekte, Kunden, LookupValue } from '@/types/app';
+import type { Angebote, Kunden, Projekte, LookupValue } from '@/types/app';
 import { APP_IDS, LOOKUP_OPTIONS } from '@/types/app';
 import { extractRecordId, createRecordUrl, cleanFieldsForApi, uploadFile, getUserProfile, LivingAppsService } from '@/services/livingAppsService';
 import {
@@ -29,6 +29,7 @@ import type { ComputedContext } from '@/config/form-enhancements/types';
 import { applyFieldOrder, flattenFieldOrder, applyDefaults, evalComputed, numberInputProps, clampNumberValue, classifyComputed, extractApplookupRefs, mergeApplookupRefs, resolveApplookupRef } from '@/config/form-enhancements/types';
 import { formEnhancements, computedDeps, computedApplookupRefs } from '@/config/form-enhancements/Angebote';
 import { AttachmentsSection } from '@/components/AttachmentsSection';
+import { requiredMessage } from '@/lib/journey/messages';
 import { t, appLabel, fieldLabel, lookupLabel, localeTag, CURRENCY } from '@/i18n';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -36,8 +37,8 @@ import {
   SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Combobox } from '@/components/Combobox';
-import { ProjekteDialog } from '@/components/dialogs/ProjekteDialog';
 import { KundenDialog } from '@/components/dialogs/KundenDialog';
+import { ProjekteDialog } from '@/components/dialogs/ProjekteDialog';
 import { DatePicker } from '@/components/DatePicker';
 import { Checkbox } from '@/components/ui/checkbox';
 import { IconAlertCircle, IconCamera, IconChevronDown, IconCircleCheck, IconClipboard, IconFileText, IconLoader2, IconPhotoPlus, IconSparkles, IconUpload, IconX } from '@tabler/icons-react';
@@ -45,9 +46,10 @@ import { fileToDataUri, extractFromInput, extractPhotoMeta, reverseGeocode, data
 import { lookupKey } from '@/lib/formatters';
 
 /** Widened prefill type for AngeboteDialog.defaultValues — see file header. */
-export type AngeboteDialogDefaults = Omit<Angebote['fields'], 'angebotstyp' | 'kostentyp'> & {
+export type AngeboteDialogDefaults = Omit<Angebote['fields'], 'angebotstyp' | 'kostentyp' | 'angebotsstatus'> & {
     angebotstyp?: LookupValue | string;
     kostentyp?: LookupValue | string;
+    angebotsstatus?: LookupValue | string;
   };
 
 interface AngeboteDialogProps {
@@ -60,8 +62,8 @@ interface AngeboteDialogProps {
   defaultValues?: AngeboteDialogDefaults;
   /** Record id when editing — enables the attachments section. Omit on create. */
   recordId?: string;
-  projekteList: Projekte[];
   kundenList: Kunden[];
+  projekteList: Projekte[];
   enablePhotoScan?: boolean;
   enablePhotoLocation?: boolean;
 }
@@ -72,10 +74,11 @@ interface AngeboteDialogProps {
 const NORMALIZE_LOOKUPS: Record<string, readonly { key: string; label: string }[]> = {
   angebotstyp: LOOKUP_OPTIONS['angebote']?.['angebotstyp'] ?? [],
   kostentyp: LOOKUP_OPTIONS['angebote']?.['kostentyp'] ?? [],
+  angebotsstatus: LOOKUP_OPTIONS['angebote']?.['angebotsstatus'] ?? [],
 };
 const NORMALIZE_APPLOOKUPS: Record<string, string> = {
-  projekt: APP_IDS.PROJEKTE,
   kunde: APP_IDS.KUNDEN,
+  projekt: APP_IDS.PROJEKTE,
 };
 function normalizeDefaults(values: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...values };
@@ -92,7 +95,7 @@ function normalizeDefaults(values: Record<string, unknown>): Record<string, unkn
   return out;
 }
 
-export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordId, projekteList, kundenList, enablePhotoScan = true, enablePhotoLocation = true }: AngeboteDialogProps) {
+export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordId, kundenList, projekteList, enablePhotoScan = true, enablePhotoLocation = true }: AngeboteDialogProps) {
   const [fields, setFields] = useState<Partial<Angebote['fields']>>({});
   const [saving, setSaving] = useState(false);
   const normalizedDefaults = useMemo<Record<string, unknown> | undefined>(
@@ -110,23 +113,6 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
       return true;
     }
   }, [fields, normalizedDefaults]);
-  // Inline-Create state for "Projekte" target. The dropdown's
-  // "+ Neuer …" option opens a sub-dialog; on submit we POST, add the new
-  // record to the local `extraProjekte` list, and select it in
-  // the originating Combobox via the captured `createProjekteField`.
-  const [createProjekteOpen, setCreateProjekteOpen] = useState(false);
-  const [createProjekteInitial, setCreateProjekteInitial] = useState('');
-  const [createProjekteField, setCreateProjekteField] = useState<string>('');
-  const [extraProjekte, setExtraProjekte] = useState< Projekte[]>([]);
-  const projekteListAll = useMemo(
-    () => [...projekteList, ...extraProjekte],
-    [projekteList, extraProjekte],
-  );
-  function openCreateProjekte(fieldKey: string, q: string) {
-    setCreateProjekteField(fieldKey);
-    setCreateProjekteInitial(q);
-    setCreateProjekteOpen(true);
-  }
   // Inline-Create state for "Kunden" target. The dropdown's
   // "+ Neuer …" option opens a sub-dialog; on submit we POST, add the new
   // record to the local `extraKunden` list, and select it in
@@ -144,8 +130,25 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
     setCreateKundenInitial(q);
     setCreateKundenOpen(true);
   }
+  // Inline-Create state for "Projekte" target. The dropdown's
+  // "+ Neuer …" option opens a sub-dialog; on submit we POST, add the new
+  // record to the local `extraProjekte` list, and select it in
+  // the originating Combobox via the captured `createProjekteField`.
+  const [createProjekteOpen, setCreateProjekteOpen] = useState(false);
+  const [createProjekteInitial, setCreateProjekteInitial] = useState('');
+  const [createProjekteField, setCreateProjekteField] = useState<string>('');
+  const [extraProjekte, setExtraProjekte] = useState< Projekte[]>([]);
+  const projekteListAll = useMemo(
+    () => [...projekteList, ...extraProjekte],
+    [projekteList, extraProjekte],
+  );
+  function openCreateProjekte(fieldKey: string, q: string) {
+    setCreateProjekteField(fieldKey);
+    setCreateProjekteInitial(q);
+    setCreateProjekteOpen(true);
+  }
   const [showErrors, setShowErrors] = useState(false);
-  const REQUIRED_FIELDS = ['angebotsnummer', 'angebotsjahr', 'angebotstyp', 'angebotsdatum'] as const;
+  const REQUIRED_FIELDS = ['angebotsnummer', 'angebotsjahr', 'angebotstyp', 'angebotsdatum', 'angebotsstatus'] as const;
   const missingRequired = REQUIRED_FIELDS.filter(k => {
     const v = (fields as Record<string, unknown>)[k];
     return v == null || v === '' || (Array.isArray(v) && v.length === 0);
@@ -172,10 +175,10 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
   // operands can resolve to numeric fields on the target record.
   const computedContext = useMemo<ComputedContext>(() => ({
     lookupLists: {
-      'projekt': projekteList,
       'kunde': kundenList,
+      'projekt': projekteList,
     },
-  }), [projekteList, kundenList, ]);
+  }), [kundenList, projekteList, ]);
   const computedValues = useMemo<Record<string, number | null>>(() => {
     let out: Record<string, number | null> = {};
     const entries = Object.entries(formEnhancements.computed);
@@ -291,8 +294,8 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
       if (parts.length) {
         contextParts.push(`<photo-metadata>\nThe following metadata was extracted from the photo\'s EXIF data:\n${parts.join('\n')}\n</photo-metadata>`);
       }
-      contextParts.push(`<available-records field="projekt" entity="Projekte">\n${JSON.stringify(projekteList.map(r => ({ record_id: r.record_id, ...r.fields })), null, 2)}\n</available-records>`);
       contextParts.push(`<available-records field="kunde" entity="Kunden">\n${JSON.stringify(kundenList.map(r => ({ record_id: r.record_id, ...r.fields })), null, 2)}\n</available-records>`);
+      contextParts.push(`<available-records field="projekt" entity="Projekte">\n${JSON.stringify(projekteList.map(r => ({ record_id: r.record_id, ...r.fields })), null, 2)}\n</available-records>`);
       if (usePersonalInfo) {
         try {
           const profile = await getUserProfile();
@@ -302,7 +305,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         }
       }
       const photoContext = contextParts.length ? contextParts.join('\n') : undefined;
-      const schema = `{\n  "angebotsnummer": string | null, // Angebotsnummer\n  "angebotsjahr": string | null, // Jahr\n  "angebotstyp": LookupValue | null, // Angebotstyp (select one key: "dienstleistung" | "projekt" | "wartung" | "schulung" | "sonstiges") mapping: dienstleistung=Dienstleistungsangebot, projekt=Projektangebot, wartung=Wartungsangebot, schulung=Schulungsangebot, sonstiges=Sonstiges\n  "angebotsdatum": string | null, // YYYY-MM-DD\n  "gueltig_bis": string | null, // YYYY-MM-DD\n  "zeitrahmen_anfang": string | null, // YYYY-MM-DD\n  "zeitrahmen_ende": string | null, // YYYY-MM-DD\n  "dauer": string | null, // Dauer\n  "kostentyp": LookupValue | null, // Kostentyp (select one key: "einmalig" | "monatlich" | "jaehrlich" | "nach_aufwand" | "pauschal" | "sonstiges") mapping: einmalig=Einmalig, monatlich=Monatlich, jaehrlich=Jährlich, nach_aufwand=Nach Aufwand, pauschal=Pauschal, sonstiges=Sonstiges\n  "kostenbetrag": number | null, // Betrag (€)\n  "kosten_beschreibung": string | null, // Kostenbeschreibung\n  "angebotsbeschreibung": string | null, // Angebotsbeschreibung\n  "leistungspositionen": string | null, // Leistungspositionen\n  "anmerkungen": string | null, // Anmerkungen / Sonstiges\n  "projekt": string | null, // Display name from Projekte (see <available-records>)\n  "kunde": string | null, // Display name from Kunden (see <available-records>)\n}`;
+      const schema = `{\n  "kunde": string | null, // Display name from Kunden (see <available-records>)\n  "angebotsnummer": string | null, // Angebotsnummer\n  "angebotsjahr": string | null, // Jahr\n  "angebotstyp": LookupValue | null, // Angebotstyp (select one key: "dienstleistung" | "projekt" | "wartung" | "schulung" | "sonstiges") mapping: dienstleistung=Dienstleistungsangebot, projekt=Projektangebot, wartung=Wartungsangebot, schulung=Schulungsangebot, sonstiges=Sonstiges\n  "angebotsdatum": string | null, // YYYY-MM-DD\n  "gueltig_bis": string | null, // YYYY-MM-DD\n  "zeitrahmen_anfang": string | null, // YYYY-MM-DD\n  "zeitrahmen_ende": string | null, // YYYY-MM-DD\n  "dauer": string | null, // Dauer\n  "kostentyp": LookupValue | null, // Kostentyp (select one key: "einmalig" | "monatlich" | "jaehrlich" | "nach_aufwand" | "pauschal" | "sonstiges") mapping: einmalig=Einmalig, monatlich=Monatlich, jaehrlich=Jährlich, nach_aufwand=Nach Aufwand, pauschal=Pauschal, sonstiges=Sonstiges\n  "kostenbetrag": number | null, // Betrag (€)\n  "kosten_beschreibung": string | null, // Kostenbeschreibung\n  "angebotsbeschreibung": string | null, // Angebotsbeschreibung\n  "leistungspositionen": string | null, // Leistungspositionen\n  "anmerkungen": string | null, // Anmerkungen / Sonstiges\n  "projekt": string | null, // Display name from Projekte (see <available-records>)\n  "angebotsstatus": LookupValue | null, // Angebotsstatus (select one key: "offen" | "gesendet" | "angenommen" | "abgelehnt" | "standard_offen") mapping: offen=Offen, gesendet=Gesendet, angenommen=Angenommen, abgelehnt=Abgelehnt, standard_offen=Standard Offen\n}`;
       const raw = await extractFromInput<Record<string, unknown>>(schema, {
         dataUri: uri,
         userText: aiText.trim() || undefined,
@@ -315,20 +318,20 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
           const n = name.toLowerCase().trim();
           return candidates.some(c => c.toLowerCase().includes(n) || n.includes(c.toLowerCase()));
         }
-        const applookupKeys = new Set<string>(["projekt", "kunde"]);
+        const applookupKeys = new Set<string>(["kunde", "projekt"]);
         for (const [k, v] of Object.entries(raw)) {
           if (applookupKeys.has(k)) continue;
           if (v != null) merged[k] = v;
-        }
-        const projektName = raw['projekt'] as string | null;
-        if (projektName) {
-          const projektMatch = projekteList.find(r => matchName(projektName!, [String(r.fields.projektkennung ?? '')]));
-          if (projektMatch) merged['projekt'] = createRecordUrl(APP_IDS.PROJEKTE, projektMatch.record_id);
         }
         const kundeName = raw['kunde'] as string | null;
         if (kundeName) {
           const kundeMatch = kundenList.find(r => matchName(kundeName!, [String(r.fields.kundenname ?? '')]));
           if (kundeMatch) merged['kunde'] = createRecordUrl(APP_IDS.KUNDEN, kundeMatch.record_id);
+        }
+        const projektName = raw['projekt'] as string | null;
+        if (projektName) {
+          const projektMatch = projekteList.find(r => matchName(projektName!, [String(r.fields.projektkennung ?? '')]));
+          if (projektMatch) merged['projekt'] = createRecordUrl(APP_IDS.PROJEKTE, projektMatch.record_id);
         }
         return merged as Partial<Angebote['fields']>;
       });
@@ -386,18 +389,35 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
     : t('new_entity', { entity: appLabel('angebote') });
 
   const fieldBlocks: Record<string, React.ReactNode> = {
+    'kunde': (
+      <div key="kunde" className="space-y-1.5">
+        <Label htmlFor="kunde">{fieldLabel('angebote', 'kunde')}</Label>
+        <Combobox
+          id="kunde"
+          placeholder=""
+          items={kundenListAll.map(r => ({
+            id: r.record_id,
+            label: String(r.fields.kundenname ?? r.record_id),
+          }))}
+          value={extractRecordId(fields.kunde)}
+          onChange={id => setFields(f => ({ ...f, kunde: id ? createRecordUrl(APP_IDS.KUNDEN, id) : undefined }))}
+          onCreateNew={(q) => openCreateKunden("kunde", q)}
+          createLabel={t('create_in', { entity: appLabel('kunden') })}
+        />
+      </div>
+    ),
     'angebotsnummer': (
       <div key="angebotsnummer" className="space-y-1.5">
         <Label htmlFor="angebotsnummer">{fieldLabel('angebote', 'angebotsnummer')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Input
           id="angebotsnummer"
-          placeholder="z. B. AG-2024-001"
+          placeholder=""
           value={fields.angebotsnummer ?? ''}
           onChange={e => setFields(f => ({ ...f, angebotsnummer: e.target.value }))}
           required
         />
         {showErrors && !fields.angebotsnummer && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('angebote', 'angebotsnummer')}</p>
         )}
       </div>
     ),
@@ -406,13 +426,13 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="angebotsjahr">{fieldLabel('angebote', 'angebotsjahr')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Input
           id="angebotsjahr"
-          placeholder="z. B. 2024"
+          placeholder=""
           value={fields.angebotsjahr ?? ''}
           onChange={e => setFields(f => ({ ...f, angebotsjahr: e.target.value }))}
           required
         />
         {showErrors && !fields.angebotsjahr && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('angebote', 'angebotsjahr')}</p>
         )}
       </div>
     ),
@@ -487,7 +507,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
           </button>
         </div>
         {showErrors && !fields.angebotstyp && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('angebote', 'angebotstyp')}</p>
         )}
       </div>
     ),
@@ -496,14 +516,14 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="angebotsdatum">{fieldLabel('angebote', 'angebotsdatum')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <DatePicker
           id="angebotsdatum"
-          placeholder="Heute, oder wann?"
+          placeholder=""
           mode="date"
           value={fields.angebotsdatum ?? null}
           onChange={v => setFields(f => ({ ...f, angebotsdatum: v ?? undefined }))}
           required
         />
         {showErrors && !fields.angebotsdatum && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('angebote', 'angebotsdatum')}</p>
         )}
       </div>
     ),
@@ -512,7 +532,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="gueltig_bis">{fieldLabel('angebote', 'gueltig_bis')}</Label>
         <DatePicker
           id="gueltig_bis"
-          placeholder="Bis wann gültig?"
+          placeholder=""
           mode="date"
           value={fields.gueltig_bis ?? null}
           onChange={v => setFields(f => ({ ...f, gueltig_bis: v ?? undefined }))}
@@ -524,7 +544,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="zeitrahmen_anfang">{fieldLabel('angebote', 'zeitrahmen_anfang')}</Label>
         <DatePicker
           id="zeitrahmen_anfang"
-          placeholder="Wann startet?"
+          placeholder=""
           mode="date"
           value={fields.zeitrahmen_anfang ?? null}
           onChange={v => setFields(f => ({ ...f, zeitrahmen_anfang: v ?? undefined }))}
@@ -536,7 +556,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="zeitrahmen_ende">{fieldLabel('angebote', 'zeitrahmen_ende')}</Label>
         <DatePicker
           id="zeitrahmen_ende"
-          placeholder="Wann endet?"
+          placeholder=""
           mode="date"
           value={fields.zeitrahmen_ende ?? null}
           onChange={v => setFields(f => ({ ...f, zeitrahmen_ende: v ?? undefined }))}
@@ -548,7 +568,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="dauer">{fieldLabel('angebote', 'dauer')}</Label>
         <Input
           id="dauer"
-          placeholder="z. B. 3 Monate, 40 Stunden"
+          placeholder=""
           value={fields.dauer ?? ''}
           onChange={e => setFields(f => ({ ...f, dauer: e.target.value }))}
         />
@@ -561,7 +581,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
           value={lookupKey(fields.kostentyp) ?? ''}
           onValueChange={v => setFields(f => ({ ...f, kostentyp: v === 'none' ? undefined : v as any }))}
         >
-          <SelectTrigger id="kostentyp" className="max-sm:h-11"><SelectValue placeholder="z. B. Einmalig, Monatlich" /></SelectTrigger>
+          <SelectTrigger id="kostentyp" className="max-sm:h-11"><SelectValue placeholder="" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">—</SelectItem>
             <SelectItem value="einmalig">{lookupLabel('angebote', 'kostentyp', 'einmalig') ?? 'Einmalig'}</SelectItem>
@@ -580,9 +600,10 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Input
           id="kostenbetrag"
           type="number"
+          inputMode="decimal"
           step="any"
           {...numberInputProps(formEnhancements, 'kostenbetrag')}
-          placeholder="z. B. 5000"
+          placeholder=""
           value={fields.kostenbetrag !== undefined ? fields.kostenbetrag : (computedValues['kostenbetrag'] ?? '')}
           onChange={e => setFields(f => ({ ...f, kostenbetrag: clampNumberValue(formEnhancements, 'kostenbetrag', e.target.value) }))}
         />
@@ -593,7 +614,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="kosten_beschreibung">{fieldLabel('angebote', 'kosten_beschreibung')}</Label>
         <Textarea
           id="kosten_beschreibung"
-          placeholder="Was kostet wie viel..."
+          placeholder=""
           value={fields.kosten_beschreibung ?? ''}
           onChange={e => setFields(f => ({ ...f, kosten_beschreibung: e.target.value }))}
           rows={3}
@@ -605,7 +626,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="angebotsbeschreibung">{fieldLabel('angebote', 'angebotsbeschreibung')}</Label>
         <Textarea
           id="angebotsbeschreibung"
-          placeholder="Was wird angeboten..."
+          placeholder=""
           value={fields.angebotsbeschreibung ?? ''}
           onChange={e => setFields(f => ({ ...f, angebotsbeschreibung: e.target.value }))}
           rows={3}
@@ -617,7 +638,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="leistungspositionen">{fieldLabel('angebote', 'leistungspositionen')}</Label>
         <Textarea
           id="leistungspositionen"
-          placeholder="Eine Position pro Zeile"
+          placeholder=""
           value={fields.leistungspositionen ?? ''}
           onChange={e => setFields(f => ({ ...f, leistungspositionen: e.target.value }))}
           rows={3}
@@ -629,7 +650,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="anmerkungen">{fieldLabel('angebote', 'anmerkungen')}</Label>
         <Textarea
           id="anmerkungen"
-          placeholder="Besonderheiten, Hinweise..."
+          placeholder=""
           value={fields.anmerkungen ?? ''}
           onChange={e => setFields(f => ({ ...f, anmerkungen: e.target.value }))}
           rows={3}
@@ -711,7 +732,7 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="projekt">{fieldLabel('angebote', 'projekt')}</Label>
         <Combobox
           id="projekt"
-          placeholder="Zugeordnetes Projekt"
+          placeholder=""
           items={projekteListAll.map(r => ({
             id: r.record_id,
             label: String(r.fields.projektkennung ?? r.record_id),
@@ -723,21 +744,79 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         />
       </div>
     ),
-    'kunde': (
-      <div key="kunde" className="space-y-1.5">
-        <Label htmlFor="kunde">{fieldLabel('angebote', 'kunde')}</Label>
-        <Combobox
-          id="kunde"
-          placeholder="Für welchen Kunden?"
-          items={kundenListAll.map(r => ({
-            id: r.record_id,
-            label: String(r.fields.kundenname ?? r.record_id),
-          }))}
-          value={extractRecordId(fields.kunde)}
-          onChange={id => setFields(f => ({ ...f, kunde: id ? createRecordUrl(APP_IDS.KUNDEN, id) : undefined }))}
-          onCreateNew={(q) => openCreateKunden("kunde", q)}
-          createLabel={t('create_in', { entity: appLabel('kunden') })}
-        />
+    'angebotsstatus': (
+      <div key="angebotsstatus" className="space-y-1.5">
+        <Label htmlFor="angebotsstatus">{fieldLabel('angebote', 'angebotsstatus')} <span className="text-destructive" aria-hidden="true">*</span></Label>
+        <div role="radiogroup" className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.angebotsstatus) === 'offen'}
+            onClick={() => setFields(f => ({ ...f, angebotsstatus: (lookupKey(f.angebotsstatus) === 'offen' ? undefined : 'offen') as any }))}
+            className={`inline-flex items-center justify-center min-h-9 max-sm:min-h-11 max-sm:px-4 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.angebotsstatus) === 'offen'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            {lookupLabel('angebote', 'angebotsstatus', 'offen') ?? 'Offen'}
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.angebotsstatus) === 'gesendet'}
+            onClick={() => setFields(f => ({ ...f, angebotsstatus: (lookupKey(f.angebotsstatus) === 'gesendet' ? undefined : 'gesendet') as any }))}
+            className={`inline-flex items-center justify-center min-h-9 max-sm:min-h-11 max-sm:px-4 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.angebotsstatus) === 'gesendet'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            {lookupLabel('angebote', 'angebotsstatus', 'gesendet') ?? 'Gesendet'}
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.angebotsstatus) === 'angenommen'}
+            onClick={() => setFields(f => ({ ...f, angebotsstatus: (lookupKey(f.angebotsstatus) === 'angenommen' ? undefined : 'angenommen') as any }))}
+            className={`inline-flex items-center justify-center min-h-9 max-sm:min-h-11 max-sm:px-4 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.angebotsstatus) === 'angenommen'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            {lookupLabel('angebote', 'angebotsstatus', 'angenommen') ?? 'Angenommen'}
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.angebotsstatus) === 'abgelehnt'}
+            onClick={() => setFields(f => ({ ...f, angebotsstatus: (lookupKey(f.angebotsstatus) === 'abgelehnt' ? undefined : 'abgelehnt') as any }))}
+            className={`inline-flex items-center justify-center min-h-9 max-sm:min-h-11 max-sm:px-4 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.angebotsstatus) === 'abgelehnt'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            {lookupLabel('angebote', 'angebotsstatus', 'abgelehnt') ?? 'Abgelehnt'}
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.angebotsstatus) === 'standard_offen'}
+            onClick={() => setFields(f => ({ ...f, angebotsstatus: (lookupKey(f.angebotsstatus) === 'standard_offen' ? undefined : 'standard_offen') as any }))}
+            className={`inline-flex items-center justify-center min-h-9 max-sm:min-h-11 max-sm:px-4 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.angebotsstatus) === 'standard_offen'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            {lookupLabel('angebote', 'angebotsstatus', 'standard_offen') ?? 'Standard Offen'}
+          </button>
+        </div>
+        {showErrors && !fields.angebotsstatus && (
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('angebote', 'angebotsstatus')}</p>
+        )}
       </div>
     ),
   };
@@ -754,13 +833,13 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
   //     kein passendes Backend-Feld in orderedFields) erscheinen NICHT als
   //     Input, sondern unten als kompakte 'Berechnungen'-Übersicht oder als
   //     Inline-Hint unter dem letzten beitragenden Input.
-  const FIELD_LABELS: Record<string, string> = {"angebotsnummer": "Angebotsnummer", "angebotsjahr": "Jahr", "angebotstyp": "Angebotstyp", "angebotsdatum": "Angebotsdatum", "gueltig_bis": "Gültig bis", "zeitrahmen_anfang": "Beginn", "zeitrahmen_ende": "Ende (falls vorhanden)", "dauer": "Dauer", "kostentyp": "Kostentyp", "kostenbetrag": "Betrag (€)", "kosten_beschreibung": "Kostenbeschreibung", "angebotsbeschreibung": "Angebotsbeschreibung", "leistungspositionen": "Leistungspositionen", "anmerkungen": "Anmerkungen / Sonstiges", "vorlage_datei": "Angebotsvorlage (PDF/Dokument)", "projekt": "Zugewiesenes Projekt", "kunde": "Kunde"};
+  const FIELD_LABELS: Record<string, string> = {"kunde": "Kunde", "angebotsnummer": "Angebotsnummer", "angebotsjahr": "Jahr", "angebotstyp": "Angebotstyp", "angebotsdatum": "Angebotsdatum", "gueltig_bis": "Gültig bis", "zeitrahmen_anfang": "Beginn", "zeitrahmen_ende": "Ende (falls vorhanden)", "dauer": "Dauer", "kostentyp": "Kostentyp", "kostenbetrag": "Betrag (€)", "kosten_beschreibung": "Kostenbeschreibung", "angebotsbeschreibung": "Angebotsbeschreibung", "leistungspositionen": "Leistungspositionen", "anmerkungen": "Anmerkungen / Sonstiges", "vorlage_datei": "Angebotsvorlage (PDF/Dokument)", "projekt": "Zugewiesenes Projekt", "angebotsstatus": "Angebotsstatus"};
   const CURRENCY_KEYS = new Set<string>(["kostenbetrag"]);
   // Applookup-Referenz-Labels: pro applookup-Feld in dieser Form (ownKey)
   // eine Map { lookupKey: label } für ALLE Felder des Target-Schemas. Wird
   // beim Render-Walk gefiltert auf die in der computed-Formel tatsächlich
   // referenzierten lookupKeys (siehe applookupRefs unten).
-  const APPLOOKUP_LABELS: Record<string, Record<string, string>> = {"projekt": {"projektkennung": "Projektkennung", "projektnummer": "Projektnummer", "projektart": "Projektart", "projektstart_jahr": "Startjahr", "projektstart_monat": "Startmonat", "status": "Projektstatus", "ansprechpartner_kunde": "Ansprechpartner beim Kunden", "letzter_schritt": "Letzter Schritt / aktueller Stand", "projektende": "Geplantes Projektende", "notizen": "Notizen", "kunde": "Kunde", "projektleitung": "Projektleitung"}, "kunde": {"kundenname": "Name / Firmenname", "kundentyp": "Kundentyp", "email": "E-Mail", "telefon": "Telefon", "strasse": "Straße", "hausnummer": "Hausnummer", "plz": "Postleitzahl", "ort": "Ort", "re_strasse": "Rechnungsstraße", "re_hausnummer": "Rechnungs-Hausnummer", "re_plz": "Rechnungs-Postleitzahl", "re_ort": "Rechnungs-Ort", "anlagedatum": "Anlagedatum", "ap_titel": "Titel Ansprechpartner", "ap_vorname": "Vorname Ansprechpartner", "ap_nachname": "Nachname Ansprechpartner", "ap_email": "E-Mail Ansprechpartner", "ap_telefon": "Telefon Ansprechpartner", "bevorzugte_kontaktart": "Bevorzugte Kontaktart", "letzter_kontakt_datum": "Datum letzter Kontakt", "letzter_kontakt_ansprechpartner": "Ansprechpartner beim letzten Kontakt", "notizen": "Notizen", "laufende_projekte": "Aktuell laufende Projekte"}};
+  const APPLOOKUP_LABELS: Record<string, Record<string, string>> = {"kunde": {"kundenname": "Name / Firmenname", "kundentyp": "Kundentyp", "email": "E-Mail", "telefon": "Telefon", "strasse": "Straße", "hausnummer": "Hausnummer", "plz": "Postleitzahl", "ort": "Ort", "re_strasse": "Rechnungsstraße", "re_hausnummer": "Rechnungs-Hausnummer", "re_plz": "Rechnungs-Postleitzahl", "re_ort": "Rechnungs-Ort", "anlagedatum": "Anlagedatum", "ap_titel": "Titel Ansprechpartner", "ap_vorname": "Vorname Ansprechpartner", "ap_nachname": "Nachname Ansprechpartner", "ap_email": "E-Mail Ansprechpartner", "ap_telefon": "Telefon Ansprechpartner", "bevorzugte_kontaktart": "Bevorzugte Kontaktart", "letzter_kontakt_datum": "Datum letzter Kontakt", "letzter_kontakt_ansprechpartner": "Ansprechpartner beim letzten Kontakt", "notizen": "Notizen", "laufende_projekte": "Aktuell laufende Projekte"}, "projekt": {"budget": "Budget (€)", "projektkennung": "Projektkennung", "projektnummer": "Projektnummer", "projektart": "Projektart", "projektstart_jahr": "Startjahr", "projektstart_monat": "Startmonat", "status": "Projektstatus", "ansprechpartner_kunde": "Ansprechpartner beim Kunden", "letzter_schritt": "Letzter Schritt / aktueller Stand", "projektende": "Geplantes Projektende", "notizen": "Notizen", "kunde": "Kunde", "projektleitung": "Projektleitung"}};
   const inputFields = useMemo(() => flattenFieldOrder(orderedFields), [orderedFieldsKey]);
   const backendFieldSet = useMemo(() => new Set(inputFields), [inputFields.join(',')]);
   const virtualComputed = useMemo(
@@ -1125,6 +1204,26 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
         </form>
       </DialogContent>
     </Dialog>
+    {createKundenOpen && (
+      <KundenDialog
+        open={createKundenOpen}
+        onClose={() => setCreateKundenOpen(false)}
+        onSubmit={async (newFields) => {
+          const result = await LivingAppsService.createKundenEntry(newFields as any) as { id?: string };
+          if (result?.id) {
+            const newRec = { record_id: result.id, fields: newFields } as unknown as Kunden;
+            setExtraKunden(prev => [...prev, newRec]);
+            const url = createRecordUrl(APP_IDS.KUNDEN, result.id);
+            setFields(prev => ({ ...prev, [createKundenField]: url } as any));
+          }
+          setCreateKundenOpen(false);
+        }}
+        defaultValues={createKundenInitial
+          ? ({ kundenname: createKundenInitial } as any)
+          : undefined}
+        projekteList={projekteList}
+      />
+    )}
     {createProjekteOpen && (
       <ProjekteDialog
         open={createProjekteOpen}
@@ -1144,26 +1243,6 @@ export function AngeboteDialog({ open, onClose, onSubmit, defaultValues, recordI
           : undefined}
         kundenList={kundenList}
         beraterInnenList={[]}
-      />
-    )}
-    {createKundenOpen && (
-      <KundenDialog
-        open={createKundenOpen}
-        onClose={() => setCreateKundenOpen(false)}
-        onSubmit={async (newFields) => {
-          const result = await LivingAppsService.createKundenEntry(newFields as any) as { id?: string };
-          if (result?.id) {
-            const newRec = { record_id: result.id, fields: newFields } as unknown as Kunden;
-            setExtraKunden(prev => [...prev, newRec]);
-            const url = createRecordUrl(APP_IDS.KUNDEN, result.id);
-            setFields(prev => ({ ...prev, [createKundenField]: url } as any));
-          }
-          setCreateKundenOpen(false);
-        }}
-        defaultValues={createKundenInitial
-          ? ({ kundenname: createKundenInitial } as any)
-          : undefined}
-        projekteList={projekteList}
       />
     )}
     </>

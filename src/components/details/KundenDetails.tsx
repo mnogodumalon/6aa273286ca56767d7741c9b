@@ -1,4 +1,4 @@
-import type { Kunden, Projekte, Angebote, Rechnungen } from '@/types/app';
+import type { Kunden, Projekte, Rechnungen, Angebote } from '@/types/app';
 import { APP_IDS } from '@/types/app';
 import { extractRecordId } from '@/services/livingAppsService';
 import {
@@ -10,37 +10,37 @@ import { SatelliteSection } from '@/components/SatelliteSection';
 export interface KundenDetailsProps {
   /** Der Record — enriched oder roh; alle Felder werden hier gerendert. */
   record: Kunden;
-  /** Liste für Projekte-Zuordnungen und Satelliten. */
+  /** N:1-Ziel „Projekte": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   projekteList: Projekte[];
-  /** Zeilen-Klick → overlay.push auf das Projekte-Detail. */
+  /** Zeilen-Klick → overlay.push auf das Projekte-Detail (nie der Edit-Dialog). */
   onOpenProjekte: (record: Projekte) => void;
   /** Kontextuelles „+": öffnet den Projekte-Dialog mit diesem Record vorgesetzt. */
   onAddProjekte: () => void;
-  /** 1:N „Angebote" (kunde): VOLLE Liste — der Block filtert auf diesen Record. */
-  angeboteList: Angebote[];
-  /** Zeilen-Klick → overlay.push auf das Angebote-Detail (nie der Edit-Dialog). */
-  onOpenAngebote: (record: Angebote) => void;
-  /** Kontextuelles „+": öffnet den Angebote-Dialog mit diesem Record vorgesetzt. */
-  onAddAngebote: () => void;
   /** 1:N „Rechnungen" (kunde): VOLLE Liste — der Block filtert auf diesen Record. */
   rechnungenList: Rechnungen[];
   /** Zeilen-Klick → overlay.push auf das Rechnungen-Detail (nie der Edit-Dialog). */
   onOpenRechnungen: (record: Rechnungen) => void;
   /** Kontextuelles „+": öffnet den Rechnungen-Dialog mit diesem Record vorgesetzt. */
   onAddRechnungen: () => void;
+  /** 1:N „Angebote" (kunde): VOLLE Liste — der Block filtert auf diesen Record. */
+  angeboteList: Angebote[];
+  /** Zeilen-Klick → overlay.push auf das Angebote-Detail (nie der Edit-Dialog). */
+  onOpenAngebote: (record: Angebote) => void;
+  /** Kontextuelles „+": öffnet den Angebote-Dialog mit diesem Record vorgesetzt. */
+  onAddAngebote: () => void;
 }
 
 export function KundenDetails({
   record,
   projekteList,
+  rechnungenList,
+  onOpenRechnungen,
+  onAddRechnungen,
   onOpenProjekte,
   onAddProjekte,
   angeboteList,
   onOpenAngebote,
   onAddAngebote,
-  rechnungenList,
-  onOpenRechnungen,
-  onAddRechnungen,
 }: KundenDetailsProps) {
   return (
     <>
@@ -71,6 +71,15 @@ export function KundenDetails({
       </RecordSection>
 
       <SatelliteSection
+        title={appLabel('rechnungen')}
+        items={rechnungenList.filter(r => extractRecordId(r.fields.kunde) === record.record_id)}
+        map={r => ({ name: r.fields.rechnungsnummer ?? appLabel('rechnungen'), meta: r.fields.rechnungsdatum })}
+        onOpen={onOpenRechnungen}
+        onAdd={onAddRechnungen}
+        getKey={r => r.record_id}
+      />
+
+      <SatelliteSection
         title={appLabel('projekte')}
         items={projekteList.filter(r => extractRecordId(r.fields.kunde) === record.record_id)}
         map={r => ({ name: r.fields.projektkennung ?? appLabel('projekte'), meta: r.fields.projektende })}
@@ -85,15 +94,6 @@ export function KundenDetails({
         map={r => ({ name: r.fields.angebotsnummer ?? appLabel('angebote'), meta: r.fields.angebotsdatum })}
         onOpen={onOpenAngebote}
         onAdd={onAddAngebote}
-        getKey={r => r.record_id}
-      />
-
-      <SatelliteSection
-        title={appLabel('rechnungen')}
-        items={rechnungenList.filter(r => extractRecordId(r.fields.kunde) === record.record_id)}
-        map={r => ({ name: r.fields.rechnungsnummer ?? appLabel('rechnungen'), meta: r.fields.rechnungsdatum })}
-        onOpen={onOpenRechnungen}
-        onAdd={onAddRechnungen}
         getKey={r => r.record_id}
       />
 

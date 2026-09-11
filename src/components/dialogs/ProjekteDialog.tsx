@@ -29,7 +29,8 @@ import type { ComputedContext } from '@/config/form-enhancements/types';
 import { applyFieldOrder, flattenFieldOrder, applyDefaults, evalComputed, numberInputProps, clampNumberValue, classifyComputed, extractApplookupRefs, mergeApplookupRefs, resolveApplookupRef } from '@/config/form-enhancements/types';
 import { formEnhancements, computedDeps, computedApplookupRefs } from '@/config/form-enhancements/Projekte';
 import { AttachmentsSection } from '@/components/AttachmentsSection';
-import { t, tx, appLabel, fieldLabel, lookupLabel, localeTag, CURRENCY } from '@/i18n';
+import { requiredMessage } from '@/lib/journey/messages';
+import { t, appLabel, fieldLabel, lookupLabel, localeTag, CURRENCY } from '@/i18n';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select, SelectContent, SelectItem,
@@ -43,27 +44,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { IconAlertCircle, IconCamera, IconChevronDown, IconCircleCheck, IconClipboard, IconFileText, IconLoader2, IconPhotoPlus, IconSparkles, IconUpload, IconX } from '@tabler/icons-react';
 import { fileToDataUri, extractFromInput, extractPhotoMeta, reverseGeocode } from '@/lib/ai';
 import { lookupKey } from '@/lib/formatters';
-
-// Kürzel für die automatische Projektkennung-Generierung
-const PROJEKTART_KUERZEL: Record<string, string> = {
-  it_beratung: 'BER',
-  entwicklung: 'ENT',
-  schulung: 'SCH',
-  konzeption: 'KON',
-  support: 'SUP',
-  sonstiges: 'SON',
-};
-
-function buildProjektkennung(
-  jahr: string | undefined,
-  artKey: string | undefined,
-  nummer: number | undefined,
-): string | null {
-  if (!jahr || !artKey || nummer == null) return null;
-  const kuerzel = PROJEKTART_KUERZEL[artKey];
-  if (!kuerzel) return null;
-  return `${jahr}-${kuerzel}-${String(nummer).padStart(3, '0')}`;
-}
 
 /** Widened prefill type for ProjekteDialog.defaultValues — see file header. */
 export type ProjekteDialogDefaults = Omit<Projekte['fields'], 'projektart' | 'projektstart_monat' | 'status'> & {
@@ -98,7 +78,7 @@ const NORMALIZE_LOOKUPS: Record<string, readonly { key: string; label: string }[
 };
 const NORMALIZE_APPLOOKUPS: Record<string, string> = {
   kunde: APP_IDS.KUNDEN,
-  projektleitung: APP_IDS['BERATER/INNEN'],
+  projektleitung: APP_IDS.BERATERINNEN,
 };
 function normalizeDefaults(values: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...values };
@@ -118,8 +98,6 @@ function normalizeDefaults(values: Record<string, unknown>): Record<string, unkn
 export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordId, kundenList, beraterInnenList, enablePhotoScan = true, enablePhotoLocation = true }: ProjekteDialogProps) {
   const [fields, setFields] = useState<Partial<Projekte['fields']>>({});
   const [saving, setSaving] = useState(false);
-  // true = Projektkennung wird automatisch generiert; false = User hat manuell editiert
-  const [kennungIsAuto, setKennungIsAuto] = useState(true);
   const normalizedDefaults = useMemo<Record<string, unknown> | undefined>(
     () => (defaultValues ? normalizeDefaults(defaultValues as Record<string, unknown>) : undefined),
     [defaultValues],
@@ -231,20 +209,8 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
       setScanSuccess(false);
       setAiText('');
       setSubmitError(null);
-      // Automatik immer im Erstellen-Modus, nie im Edit-Modus
-      setKennungIsAuto(!recordId);
     }
   }, [open, normalizedDefaults]);
-  // Automatische Projektkennung: Jahr-KÜRZEL-NNN
-  useEffect(() => {
-    if (!kennungIsAuto) return;
-    const artKey = lookupKey(fields.projektart) ?? undefined;
-    const generated = buildProjektkennung(fields.projektstart_jahr, artKey, fields.projektnummer);
-    if (generated) {
-      setFields(f => ({ ...f, projektkennung: generated }));
-    }
-  }, [fields.projektart, fields.projektstart_jahr, fields.projektnummer, kennungIsAuto]);
-
   useEffect(() => {
     try { localStorage.setItem('ai-use-personal-info', String(usePersonalInfo)); } catch {}
   }, [usePersonalInfo]);
@@ -339,7 +305,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
         }
       }
       const photoContext = contextParts.length ? contextParts.join('\n') : undefined;
-      const schema = `{\n  "projektkennung": string | null, // Projektkennung\n  "projektnummer": number | null, // Projektnummer\n  "projektart": LookupValue | null, // Projektart (select one key: "it_beratung" | "entwicklung" | "schulung" | "konzeption" | "support" | "sonstiges") mapping: it_beratung=IT-Beratung, entwicklung=Entwicklung, schulung=Schulung, konzeption=Konzeption, support=Support, sonstiges=Sonstiges\n  "projektstart_jahr": string | null, // Startjahr\n  "projektstart_monat": LookupValue | null, // Startmonat (select one key: "januar" | "februar" | "maerz" | "april" | "mai" | "juni" | "juli" | "august" | "september" | "oktober" | "november" | "dezember") mapping: januar=Januar, februar=Februar, maerz=März, april=April, mai=Mai, juni=Juni, juli=Juli, august=August, september=September, oktober=Oktober, november=November, dezember=Dezember\n  "status": LookupValue | null, // Projektstatus (select one key: "in_bearbeitung" | "akquise" | "abgeschlossen") mapping: in_bearbeitung=In Bearbeitung, akquise=Akquise, abgeschlossen=Abgeschlossen\n  "ansprechpartner_kunde": string | null, // Ansprechpartner beim Kunden\n  "letzter_schritt": string | null, // Letzter Schritt / aktueller Stand\n  "projektende": string | null, // YYYY-MM-DD\n  "notizen": string | null, // Notizen\n  "kunde": string | null, // Display name from Kunden (see <available-records>)\n  "projektleitung": string | null, // Display name from Berater/innen (see <available-records>)\n}`;
+      const schema = `{\n  "budget": number | null, // Budget (€)\n  "projektkennung": string | null, // Projektkennung\n  "projektnummer": number | null, // Projektnummer\n  "projektart": LookupValue | null, // Projektart (select one key: "entwicklung" | "schulung" | "konzeption" | "support" | "sonstiges" | "it_beratung") mapping: entwicklung=Entwicklung, schulung=Schulung, konzeption=Konzeption, support=Support, sonstiges=Sonstiges, it_beratung=IT-Beratung\n  "projektstart_jahr": string | null, // Startjahr\n  "projektstart_monat": LookupValue | null, // Startmonat (select one key: "januar" | "februar" | "maerz" | "april" | "mai" | "juni" | "juli" | "august" | "september" | "oktober" | "november" | "dezember") mapping: januar=Januar, februar=Februar, maerz=März, april=April, mai=Mai, juni=Juni, juli=Juli, august=August, september=September, oktober=Oktober, november=November, dezember=Dezember\n  "status": LookupValue | null, // Projektstatus (select one key: "in_bearbeitung" | "akquise" | "abgeschlossen") mapping: in_bearbeitung=In Bearbeitung, akquise=Akquise, abgeschlossen=Abgeschlossen\n  "ansprechpartner_kunde": string | null, // Ansprechpartner beim Kunden\n  "letzter_schritt": string | null, // Letzter Schritt / aktueller Stand\n  "projektende": string | null, // YYYY-MM-DD\n  "notizen": string | null, // Notizen\n  "kunde": string | null, // Display name from Kunden (see <available-records>)\n  "projektleitung": string | null, // Display name from Berater/innen (see <available-records>)\n}`;
       const raw = await extractFromInput<Record<string, unknown>>(schema, {
         dataUri: uri,
         userText: aiText.trim() || undefined,
@@ -365,7 +331,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
         const projektleitungName = raw['projektleitung'] as string | null;
         if (projektleitungName) {
           const projektleitungMatch = beraterInnenList.find(r => matchName(projektleitungName!, [[r.fields.vorname ?? '', r.fields.nachname ?? ''].filter(Boolean).join(' ')]));
-          if (projektleitungMatch) merged['projektleitung'] = createRecordUrl(APP_IDS['BERATER/INNEN'], projektleitungMatch.record_id);
+          if (projektleitungMatch) merged['projektleitung'] = createRecordUrl(APP_IDS.BERATERINNEN, projektleitungMatch.record_id);
         }
         return merged as Partial<Projekte['fields']>;
       });
@@ -413,41 +379,33 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
     : t('new_entity', { entity: appLabel('projekte') });
 
   const fieldBlocks: Record<string, React.ReactNode> = {
+    'budget': (
+      <div key="budget" className="space-y-1.5">
+        <Label htmlFor="budget">{fieldLabel('projekte', 'budget')}</Label>
+        <Input
+          id="budget"
+          type="number"
+          inputMode="decimal"
+          step="any"
+          {...numberInputProps(formEnhancements, 'budget')}
+          placeholder=""
+          value={fields.budget !== undefined ? fields.budget : (computedValues['budget'] ?? '')}
+          onChange={e => setFields(f => ({ ...f, budget: clampNumberValue(formEnhancements, 'budget', e.target.value) }))}
+        />
+      </div>
+    ),
     'projektkennung': (
       <div key="projektkennung" className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="projektkennung">
-            {fieldLabel('projekte', 'projektkennung')} <span className="text-destructive" aria-hidden="true">*</span>
-          </Label>
-          {kennungIsAuto ? (
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-              {tx('Automatisch')}
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setKennungIsAuto(true)}
-              className="text-xs text-primary hover:underline shrink-0"
-            >
-              {tx('Automatisch')}
-            </button>
-          )}
-        </div>
+        <Label htmlFor="projektkennung">{fieldLabel('projekte', 'projektkennung')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Input
           id="projektkennung"
-          placeholder={kennungIsAuto ? tx('Projektart, Jahr und Nummer eingeben') : 'z. B. 2026-ENT-001'}
+          placeholder=""
           value={fields.projektkennung ?? ''}
-          readOnly={kennungIsAuto}
-          className={kennungIsAuto ? 'bg-muted/40 cursor-default select-all' : ''}
-          onChange={e => {
-            setKennungIsAuto(false);
-            setFields(f => ({ ...f, projektkennung: e.target.value }));
-          }}
+          onChange={e => setFields(f => ({ ...f, projektkennung: e.target.value }))}
           required
         />
         {showErrors && !fields.projektkennung && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('projekte', 'projektkennung')}</p>
         )}
       </div>
     ),
@@ -457,14 +415,15 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Input
           id="projektnummer"
           type="number"
+          inputMode="decimal"
           step="any"
           {...numberInputProps(formEnhancements, 'projektnummer')}
-          placeholder="z. B. 42"
+          placeholder=""
           value={fields.projektnummer !== undefined ? fields.projektnummer : (computedValues['projektnummer'] ?? '')}
           onChange={e => setFields(f => ({ ...f, projektnummer: clampNumberValue(formEnhancements, 'projektnummer', e.target.value) }))}
         />
         {showErrors && !fields.projektnummer && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('projekte', 'projektnummer')}</p>
         )}
       </div>
     ),
@@ -475,19 +434,19 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
           value={lookupKey(fields.projektart) ?? ''}
           onValueChange={v => setFields(f => ({ ...f, projektart: v === 'none' ? undefined : v as any }))}
         >
-          <SelectTrigger id="projektart" className="max-sm:h-11"><SelectValue placeholder="z. B. IT-Beratung, Entwicklung" /></SelectTrigger>
+          <SelectTrigger id="projektart" className="max-sm:h-11"><SelectValue placeholder="" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">—</SelectItem>
-            <SelectItem value="it_beratung">{lookupLabel('projekte', 'projektart', 'it_beratung') ?? 'IT-Beratung'}</SelectItem>
             <SelectItem value="entwicklung">{lookupLabel('projekte', 'projektart', 'entwicklung') ?? 'Entwicklung'}</SelectItem>
             <SelectItem value="schulung">{lookupLabel('projekte', 'projektart', 'schulung') ?? 'Schulung'}</SelectItem>
             <SelectItem value="konzeption">{lookupLabel('projekte', 'projektart', 'konzeption') ?? 'Konzeption'}</SelectItem>
             <SelectItem value="support">{lookupLabel('projekte', 'projektart', 'support') ?? 'Support'}</SelectItem>
             <SelectItem value="sonstiges">{lookupLabel('projekte', 'projektart', 'sonstiges') ?? 'Sonstiges'}</SelectItem>
+            <SelectItem value="it_beratung">{lookupLabel('projekte', 'projektart', 'it_beratung') ?? 'IT-Beratung'}</SelectItem>
           </SelectContent>
         </Select>
         {showErrors && !fields.projektart && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('projekte', 'projektart')}</p>
         )}
       </div>
     ),
@@ -496,13 +455,13 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="projektstart_jahr">{fieldLabel('projekte', 'projektstart_jahr')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Input
           id="projektstart_jahr"
-          placeholder="z. B. 2024"
+          placeholder=""
           value={fields.projektstart_jahr ?? ''}
           onChange={e => setFields(f => ({ ...f, projektstart_jahr: e.target.value }))}
           required
         />
         {showErrors && !fields.projektstart_jahr && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('projekte', 'projektstart_jahr')}</p>
         )}
       </div>
     ),
@@ -513,7 +472,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
           value={lookupKey(fields.projektstart_monat) ?? ''}
           onValueChange={v => setFields(f => ({ ...f, projektstart_monat: v === 'none' ? undefined : v as any }))}
         >
-          <SelectTrigger id="projektstart_monat" className="max-sm:h-11"><SelectValue placeholder="z. B. Januar, Februar" /></SelectTrigger>
+          <SelectTrigger id="projektstart_monat" className="max-sm:h-11"><SelectValue placeholder="" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">—</SelectItem>
             <SelectItem value="januar">{lookupLabel('projekte', 'projektstart_monat', 'januar') ?? 'Januar'}</SelectItem>
@@ -577,7 +536,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
           </button>
         </div>
         {showErrors && !fields.status && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('projekte', 'status')}</p>
         )}
       </div>
     ),
@@ -586,7 +545,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="ansprechpartner_kunde">{fieldLabel('projekte', 'ansprechpartner_kunde')}</Label>
         <Input
           id="ansprechpartner_kunde"
-          placeholder="Name der Person"
+          placeholder=""
           value={fields.ansprechpartner_kunde ?? ''}
           onChange={e => setFields(f => ({ ...f, ansprechpartner_kunde: e.target.value }))}
         />
@@ -597,7 +556,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="letzter_schritt">{fieldLabel('projekte', 'letzter_schritt')}</Label>
         <Textarea
           id="letzter_schritt"
-          placeholder="Was wurde zuletzt gemacht..."
+          placeholder=""
           value={fields.letzter_schritt ?? ''}
           onChange={e => setFields(f => ({ ...f, letzter_schritt: e.target.value }))}
           rows={3}
@@ -609,7 +568,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="projektende">{fieldLabel('projekte', 'projektende')}</Label>
         <DatePicker
           id="projektende"
-          placeholder="Geplantes Ende wählen"
+          placeholder=""
           mode="date"
           value={fields.projektende ?? null}
           onChange={v => setFields(f => ({ ...f, projektende: v ?? undefined }))}
@@ -621,7 +580,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="notizen">{fieldLabel('projekte', 'notizen')}</Label>
         <Textarea
           id="notizen"
-          placeholder="Besonderheiten, Meilensteine..."
+          placeholder=""
           value={fields.notizen ?? ''}
           onChange={e => setFields(f => ({ ...f, notizen: e.target.value }))}
           rows={3}
@@ -633,7 +592,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="kunde">{fieldLabel('projekte', 'kunde')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Combobox
           id="kunde"
-          placeholder="Welcher Kunde?"
+          placeholder=""
           items={kundenListAll.map(r => ({
             id: r.record_id,
             label: String(r.fields.kundenname ?? r.record_id),
@@ -644,7 +603,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
           createLabel={t('create_in', { entity: appLabel('kunden') })}
         />
         {showErrors && !fields.kunde && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('projekte', 'kunde')}</p>
         )}
       </div>
     ),
@@ -653,13 +612,13 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
         <Label htmlFor="projektleitung">{fieldLabel('projekte', 'projektleitung')}</Label>
         <Combobox
           id="projektleitung"
-          placeholder="Projektleiter/in wählen"
+          placeholder=""
           items={beraterInnenListAll.map(r => ({
             id: r.record_id,
             label: String(r.fields.nachname ?? r.record_id),
           }))}
           value={extractRecordId(fields.projektleitung)}
-          onChange={id => setFields(f => ({ ...f, projektleitung: id ? createRecordUrl(APP_IDS['BERATER/INNEN'], id) : undefined }))}
+          onChange={id => setFields(f => ({ ...f, projektleitung: id ? createRecordUrl(APP_IDS.BERATERINNEN, id) : undefined }))}
           onCreateNew={(q) => openCreateBeraterInnen("projektleitung", q)}
           createLabel={t('create_in', { entity: appLabel('berater/innen') })}
         />
@@ -679,8 +638,8 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
   //     kein passendes Backend-Feld in orderedFields) erscheinen NICHT als
   //     Input, sondern unten als kompakte 'Berechnungen'-Übersicht oder als
   //     Inline-Hint unter dem letzten beitragenden Input.
-  const FIELD_LABELS: Record<string, string> = {"projektkennung": "Projektkennung", "projektnummer": "Projektnummer", "projektart": "Projektart", "projektstart_jahr": "Startjahr", "projektstart_monat": "Startmonat", "status": "Projektstatus", "ansprechpartner_kunde": "Ansprechpartner beim Kunden", "letzter_schritt": "Letzter Schritt / aktueller Stand", "projektende": "Geplantes Projektende", "notizen": "Notizen", "kunde": "Kunde", "projektleitung": "Projektleitung"};
-  const CURRENCY_KEYS = new Set<string>([]);
+  const FIELD_LABELS: Record<string, string> = {"budget": "Budget (€)", "projektkennung": "Projektkennung", "projektnummer": "Projektnummer", "projektart": "Projektart", "projektstart_jahr": "Startjahr", "projektstart_monat": "Startmonat", "status": "Projektstatus", "ansprechpartner_kunde": "Ansprechpartner beim Kunden", "letzter_schritt": "Letzter Schritt / aktueller Stand", "projektende": "Geplantes Projektende", "notizen": "Notizen", "kunde": "Kunde", "projektleitung": "Projektleitung"};
+  const CURRENCY_KEYS = new Set<string>(["budget"]);
   // Applookup-Referenz-Labels: pro applookup-Feld in dieser Form (ownKey)
   // eine Map { lookupKey: label } für ALLE Felder des Target-Schemas. Wird
   // beim Render-Walk gefiltert auf die in der computed-Formel tatsächlich
@@ -1079,7 +1038,7 @@ export function ProjekteDialog({ open, onClose, onSubmit, defaultValues, recordI
           if (result?.id) {
             const newRec = { record_id: result.id, fields: newFields } as unknown as BeraterInnen;
             setExtraBeraterInnen(prev => [...prev, newRec]);
-            const url = createRecordUrl(APP_IDS['BERATER/INNEN'], result.id);
+            const url = createRecordUrl(APP_IDS.BERATERINNEN, result.id);
             setFields(prev => ({ ...prev, [createBeraterInnenField]: url } as any));
           }
           setCreateBeraterInnenOpen(false);

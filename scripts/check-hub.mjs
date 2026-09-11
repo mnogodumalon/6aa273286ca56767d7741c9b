@@ -27,34 +27,34 @@
 import { existsSync, readFileSync } from 'node:fs';
 
 const HUBS = {
-  "berater/innen": {
-    "component": "BeraterInnenDetails",
-    "file": "src/components/details/BeraterInnenDetails.tsx",
+  "projekte": {
+    "component": "ProjekteDetails",
+    "file": "src/components/details/ProjekteDetails.tsx",
     "satellites": [
-      "leistungskatalog",
-      "projekte",
       "zeiterfassung",
-      "rechnungen"
+      "rechnungen",
+      "kunden",
+      "berater/innen",
+      "angebote"
     ]
   },
   "kunden": {
     "component": "KundenDetails",
     "file": "src/components/details/KundenDetails.tsx",
     "satellites": [
+      "rechnungen",
       "projekte",
-      "angebote",
-      "rechnungen"
+      "angebote"
     ]
   },
-  "projekte": {
-    "component": "ProjekteDetails",
-    "file": "src/components/details/ProjekteDetails.tsx",
+  "berater/innen": {
+    "component": "BeraterInnenDetails",
+    "file": "src/components/details/BeraterInnenDetails.tsx",
     "satellites": [
-      "berater/innen",
-      "kunden",
-      "angebote",
       "zeiterfassung",
-      "rechnungen"
+      "rechnungen",
+      "projekte",
+      "leistungskatalog"
     ]
   }
 };

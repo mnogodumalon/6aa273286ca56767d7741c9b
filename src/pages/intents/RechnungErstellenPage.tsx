@@ -109,7 +109,7 @@ export default function RechnungErstellenPage() {
     setSubmitError(null);
     try {
       const uniqueBeraterUrls = uniqueBeraterIds.map(id =>
-        createRecordUrl(APP_IDS['BERATER/INNEN'], id)
+        createRecordUrl(APP_IDS.BERATERINNEN, id)
       );
 
       const result = await LivingAppsService.createRechnungenEntry({

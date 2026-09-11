@@ -10,15 +10,15 @@ import { SatelliteSection } from '@/components/SatelliteSection';
 export interface BeraterInnenDetailsProps {
   /** Der Record — enriched oder roh; alle Felder werden hier gerendert. */
   record: BeraterInnen;
-  /** Liste für Leistungskatalog-Zuordnungen und Satelliten. */
+  /** N:1-Ziel „Leistungskatalog": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   leistungskatalogList: Leistungskatalog[];
-  /** Zeilen-Klick → overlay.push auf das Leistungskatalog-Detail. */
+  /** Zeilen-Klick → overlay.push auf das Leistungskatalog-Detail (nie der Edit-Dialog). */
   onOpenLeistungskatalog: (record: Leistungskatalog) => void;
   /** Kontextuelles „+": öffnet den Leistungskatalog-Dialog mit diesem Record vorgesetzt. */
   onAddLeistungskatalog: () => void;
-  /** Liste für Projekte-Zuordnungen und Satelliten. */
+  /** N:1-Ziel „Projekte": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   projekteList: Projekte[];
-  /** Zeilen-Klick → overlay.push auf das Projekte-Detail. */
+  /** Zeilen-Klick → overlay.push auf das Projekte-Detail (nie der Edit-Dialog). */
   onOpenProjekte: (record: Projekte) => void;
   /** Kontextuelles „+": öffnet den Projekte-Dialog mit diesem Record vorgesetzt. */
   onAddProjekte: () => void;
@@ -39,17 +39,17 @@ export interface BeraterInnenDetailsProps {
 export function BeraterInnenDetails({
   record,
   leistungskatalogList,
-  onOpenLeistungskatalog,
-  onAddLeistungskatalog,
   projekteList,
-  onOpenProjekte,
-  onAddProjekte,
   zeiterfassungList,
   onOpenZeiterfassung,
   onAddZeiterfassung,
   rechnungenList,
   onOpenRechnungen,
   onAddRechnungen,
+  onOpenProjekte,
+  onAddProjekte,
+  onOpenLeistungskatalog,
+  onAddLeistungskatalog,
 }: BeraterInnenDetailsProps) {
   return (
     <>
@@ -80,24 +80,6 @@ export function BeraterInnenDetails({
       </RecordSection>
 
       <SatelliteSection
-        title={appLabel('leistungskatalog')}
-        items={leistungskatalogList.filter(r => Array.isArray(r.fields.berater) && r.fields.berater.some((u: unknown) => extractRecordId(u) === record.record_id))}
-        map={r => ({ name: r.fields.leistungsbezeichnung ?? appLabel('leistungskatalog'), meta: undefined })}
-        onOpen={onOpenLeistungskatalog}
-        onAdd={onAddLeistungskatalog}
-        getKey={r => r.record_id}
-      />
-
-      <SatelliteSection
-        title={appLabel('projekte')}
-        items={projekteList.filter(r => extractRecordId(r.fields.projektleitung) === record.record_id)}
-        map={r => ({ name: r.fields.projektkennung ?? appLabel('projekte'), meta: r.fields.projektende })}
-        onOpen={onOpenProjekte}
-        onAdd={onAddProjekte}
-        getKey={r => r.record_id}
-      />
-
-      <SatelliteSection
         title={appLabel('zeiterfassung')}
         items={zeiterfassungList.filter(r => extractRecordId(r.fields.berater) === record.record_id)}
         map={r => ({ name: r.fields.jahr ?? appLabel('zeiterfassung'), meta: r.fields.datum })}
@@ -115,7 +97,25 @@ export function BeraterInnenDetails({
         getKey={r => r.record_id}
       />
 
-      <RecordAttachments appId={APP_IDS['BERATER/INNEN']} recordId={record.record_id} />
+      <SatelliteSection
+        title={appLabel('projekte')}
+        items={projekteList.filter(r => extractRecordId(r.fields.projektleitung) === record.record_id)}
+        map={r => ({ name: r.fields.projektkennung ?? appLabel('projekte'), meta: r.fields.projektende })}
+        onOpen={onOpenProjekte}
+        onAdd={onAddProjekte}
+        getKey={r => r.record_id}
+      />
+
+      <SatelliteSection
+        title={appLabel('leistungskatalog')}
+        items={leistungskatalogList.filter(r => Array.isArray(r.fields.berater) && r.fields.berater.some((u: unknown) => extractRecordId(u) === record.record_id))}
+        map={r => ({ name: r.fields.leistungsbezeichnung ?? appLabel('leistungskatalog'), meta: undefined })}
+        onOpen={onOpenLeistungskatalog}
+        onAdd={onAddLeistungskatalog}
+        getKey={r => r.record_id}
+      />
+
+      <RecordAttachments appId={APP_IDS.BERATERINNEN} recordId={record.record_id} />
     </>
   );
 }

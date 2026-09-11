@@ -1,4 +1,4 @@
-import type { Angebote, Projekte, Kunden } from '@/types/app';
+import type { Angebote, Kunden, Projekte } from '@/types/app';
 import { APP_IDS } from '@/types/app';
 import { extractRecordId } from '@/services/livingAppsService';
 import {
@@ -10,25 +10,25 @@ import { MediaThumbnail } from '@/components/widgets/MediaViewer';
 export interface AngeboteDetailsProps {
   /** Der Record — enriched oder roh; alle Felder werden hier gerendert. */
   record: Angebote;
-  /** N:1-Ziel „Projekte": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
-  projekteList: Projekte[];
-  /** Klick auf die Projekte-Relation → overlay.push auf dessen Detail. */
-  onOpenProjekte?: (record: Projekte) => void;
   /** N:1-Ziel „Kunden": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   kundenList: Kunden[];
   /** Klick auf die Kunden-Relation → overlay.push auf dessen Detail. */
   onOpenKunden?: (record: Kunden) => void;
+  /** N:1-Ziel „Projekte": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
+  projekteList: Projekte[];
+  /** Klick auf die Projekte-Relation → overlay.push auf dessen Detail. */
+  onOpenProjekte?: (record: Projekte) => void;
 }
 
 export function AngeboteDetails({
   record,
-  projekteList,
-  onOpenProjekte,
   kundenList,
   onOpenKunden,
+  projekteList,
+  onOpenProjekte,
 }: AngeboteDetailsProps) {
-  const projektTarget = projekteList.find(r => r.record_id === extractRecordId(record.fields.projekt));
   const kundeTarget = kundenList.find(r => r.record_id === extractRecordId(record.fields.kunde));
+  const projektTarget = projekteList.find(r => r.record_id === extractRecordId(record.fields.projekt));
   return (
     <>
       <RecordSection title={t('details')} cols={2}>
@@ -51,21 +51,22 @@ export function AngeboteDetails({
             <MediaThumbnail src={record.fields.vorlage_datei as string} fit="contain" className="max-h-64 w-full rounded-lg" />
           ) : '—'}
         </RecordField>
+        <RecordField label={fieldLabel('angebote', 'angebotsstatus')} value={record.fields.angebotsstatus} format="pill" />
       </RecordSection>
 
       {/* N:1 — verknüpfte Records: IMMER klickbar, nie eine Text-Sackgasse. */}
       <RecordSection title={t('relations')} cols={2}>
         <RecordRelation
-          label={fieldLabel('angebote', 'projekt')}
-          name={projektTarget?.fields.projektkennung ?? '—'}
-          meta={[projektTarget?.fields.projektstart_jahr, projektTarget?.fields.ansprechpartner_kunde].filter(Boolean).join(' · ') || undefined}
-          onClick={projektTarget && onOpenProjekte ? () => onOpenProjekte!(projektTarget!) : undefined}
-        />
-        <RecordRelation
           label={fieldLabel('angebote', 'kunde')}
           name={kundeTarget?.fields.kundenname ?? '—'}
           meta={[kundeTarget?.fields.email, kundeTarget?.fields.telefon].filter(Boolean).join(' · ') || undefined}
           onClick={kundeTarget && onOpenKunden ? () => onOpenKunden!(kundeTarget!) : undefined}
+        />
+        <RecordRelation
+          label={fieldLabel('angebote', 'projekt')}
+          name={projektTarget?.fields.projektkennung ?? '—'}
+          meta={[projektTarget?.fields.projektstart_jahr, projektTarget?.fields.ansprechpartner_kunde].filter(Boolean).join(' · ') || undefined}
+          onClick={projektTarget && onOpenProjekte ? () => onOpenProjekte!(projektTarget!) : undefined}
         />
       </RecordSection>
 

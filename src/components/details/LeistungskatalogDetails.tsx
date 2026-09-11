@@ -10,9 +10,9 @@ import { SatelliteSection } from '@/components/SatelliteSection';
 export interface LeistungskatalogDetailsProps {
   /** Der Record — enriched oder roh; alle Felder werden hier gerendert. */
   record: Leistungskatalog;
-  /** Liste für BeraterInnen-Zuordnungen und Satelliten. */
+  /** N:1-Ziel „BeraterInnen": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   beraterInnenList: BeraterInnen[];
-  /** Zeilen-Klick → overlay.push auf das BeraterInnen-Detail. */
+  /** Zeilen-Klick → overlay.push auf das BeraterInnen-Detail (nie der Edit-Dialog). */
   onOpenBeraterInnen: (record: BeraterInnen) => void;
   /** Kontextuelles „+": öffnet den BeraterInnen-Dialog mit diesem Record vorgesetzt. */
   onAddBeraterInnen: () => void;
@@ -27,11 +27,11 @@ export interface LeistungskatalogDetailsProps {
 export function LeistungskatalogDetails({
   record,
   beraterInnenList,
-  onOpenBeraterInnen,
-  onAddBeraterInnen,
   zeiterfassungList,
   onOpenZeiterfassung,
   onAddZeiterfassung,
+  onOpenBeraterInnen,
+  onAddBeraterInnen,
 }: LeistungskatalogDetailsProps) {
   return (
     <>
@@ -47,20 +47,20 @@ export function LeistungskatalogDetails({
       </RecordSection>
 
       <SatelliteSection
-        title={appLabel('berater/innen')}
-        items={beraterInnenList.filter(r => Array.isArray(r.fields.leistungen) && r.fields.leistungen.some((u: unknown) => extractRecordId(u) === record.record_id))}
-        map={r => ({ name: r.fields.nachname ?? appLabel('berater/innen'), meta: r.fields.einstiegsdatum })}
-        onOpen={onOpenBeraterInnen}
-        onAdd={onAddBeraterInnen}
-        getKey={r => r.record_id}
-      />
-
-      <SatelliteSection
         title={appLabel('zeiterfassung')}
         items={zeiterfassungList.filter(r => extractRecordId(r.fields.leistung) === record.record_id)}
         map={r => ({ name: r.fields.jahr ?? appLabel('zeiterfassung'), meta: r.fields.datum })}
         onOpen={onOpenZeiterfassung}
         onAdd={onAddZeiterfassung}
+        getKey={r => r.record_id}
+      />
+
+      <SatelliteSection
+        title={appLabel('berater/innen')}
+        items={beraterInnenList.filter(r => Array.isArray(r.fields.leistungen) && r.fields.leistungen.some((u: unknown) => extractRecordId(u) === record.record_id))}
+        map={r => ({ name: r.fields.nachname ?? appLabel('berater/innen'), meta: r.fields.einstiegsdatum })}
+        onOpen={onOpenBeraterInnen}
+        onAdd={onAddBeraterInnen}
         getKey={r => r.record_id}
       />
 

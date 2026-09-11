@@ -28,6 +28,7 @@ import type { ComputedContext } from '@/config/form-enhancements/types';
 import { applyFieldOrder, flattenFieldOrder, applyDefaults, evalComputed, numberInputProps, clampNumberValue, classifyComputed, extractApplookupRefs, mergeApplookupRefs, resolveApplookupRef } from '@/config/form-enhancements/types';
 import { formEnhancements, computedDeps, computedApplookupRefs } from '@/config/form-enhancements/Leistungskatalog';
 import { AttachmentsSection } from '@/components/AttachmentsSection';
+import { requiredMessage } from '@/lib/journey/messages';
 import { t, appLabel, fieldLabel, lookupLabel, localeTag, CURRENCY } from '@/i18n';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -70,7 +71,7 @@ const NORMALIZE_LOOKUPS: Record<string, readonly { key: string; label: string }[
   einheit: LOOKUP_OPTIONS['leistungskatalog']?.['einheit'] ?? [],
 };
 const NORMALIZE_APPLOOKUPS: Record<string, string> = {
-  berater: APP_IDS['BERATER/INNEN'],
+  berater: APP_IDS.BERATERINNEN,
 };
 function normalizeDefaults(values: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...values };
@@ -301,7 +302,7 @@ export function LeistungskatalogDialog({ open, onClose, onSubmit, defaultValues,
           const beraterUrls = (beraterNames as unknown[])
             .map(n => beraterInnenList.find(r => matchName(String(n), [[r.fields.vorname ?? '', r.fields.nachname ?? ''].filter(Boolean).join(' ')])))
             .filter((r): r is NonNullable<typeof r> => Boolean(r))
-            .map(r => createRecordUrl(APP_IDS['BERATER/INNEN'], r.record_id));
+            .map(r => createRecordUrl(APP_IDS.BERATERINNEN, r.record_id));
           if (beraterUrls.length > 0) merged['berater'] = beraterUrls;
         }
         return merged as Partial<Leistungskatalog['fields']>;
@@ -355,13 +356,13 @@ export function LeistungskatalogDialog({ open, onClose, onSubmit, defaultValues,
         <Label htmlFor="berater">{fieldLabel('leistungskatalog', 'berater')}</Label>
         <MultiCombobox
           id="berater"
-          placeholder="Berater/innen wählen"
+          placeholder=""
           items={beraterInnenListAll.map(r => ({
             id: r.record_id,
             label: String(r.fields.nachname ?? r.record_id),
           }))}
           values={extractRecordIds(fields.berater)}
-          onChange={ids => setFields(f => ({ ...f, berater: ids.length ? ids.map(id => createRecordUrl(APP_IDS['BERATER/INNEN'], id)) as any : undefined }))}
+          onChange={ids => setFields(f => ({ ...f, berater: ids.length ? ids.map(id => createRecordUrl(APP_IDS.BERATERINNEN, id)) as any : undefined }))}
           onCreateNew={(q) => openCreateBeraterInnen("berater", q)}
           createLabel={t('create_in', { entity: appLabel('berater/innen') })}
         />
@@ -372,13 +373,13 @@ export function LeistungskatalogDialog({ open, onClose, onSubmit, defaultValues,
         <Label htmlFor="leistungsbezeichnung">{fieldLabel('leistungskatalog', 'leistungsbezeichnung')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Input
           id="leistungsbezeichnung"
-          placeholder="z. B. Beratung DevOps"
+          placeholder=""
           value={fields.leistungsbezeichnung ?? ''}
           onChange={e => setFields(f => ({ ...f, leistungsbezeichnung: e.target.value }))}
           required
         />
         {showErrors && !fields.leistungsbezeichnung && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('leistungskatalog', 'leistungsbezeichnung')}</p>
         )}
       </div>
     ),
@@ -389,7 +390,7 @@ export function LeistungskatalogDialog({ open, onClose, onSubmit, defaultValues,
           value={lookupKey(fields.leistungstyp) ?? ''}
           onValueChange={v => setFields(f => ({ ...f, leistungstyp: v === 'none' ? undefined : v as any }))}
         >
-          <SelectTrigger id="leistungstyp" className="max-sm:h-11"><SelectValue placeholder="z. B. Beratung, Schulung" /></SelectTrigger>
+          <SelectTrigger id="leistungstyp" className="max-sm:h-11"><SelectValue placeholder="" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">—</SelectItem>
             <SelectItem value="beratung">{lookupLabel('leistungskatalog', 'leistungstyp', 'beratung') ?? 'Beratung'}</SelectItem>
@@ -401,7 +402,7 @@ export function LeistungskatalogDialog({ open, onClose, onSubmit, defaultValues,
           </SelectContent>
         </Select>
         {showErrors && !fields.leistungstyp && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('leistungskatalog', 'leistungstyp')}</p>
         )}
       </div>
     ),
@@ -410,7 +411,7 @@ export function LeistungskatalogDialog({ open, onClose, onSubmit, defaultValues,
         <Label htmlFor="beschreibung">{fieldLabel('leistungskatalog', 'beschreibung')}</Label>
         <Textarea
           id="beschreibung"
-          placeholder="Was wird geleistet, Umfang..."
+          placeholder=""
           value={fields.beschreibung ?? ''}
           onChange={e => setFields(f => ({ ...f, beschreibung: e.target.value }))}
           rows={3}
@@ -423,9 +424,10 @@ export function LeistungskatalogDialog({ open, onClose, onSubmit, defaultValues,
         <Input
           id="kostenvoranschlag"
           type="number"
+          inputMode="decimal"
           step="any"
           {...numberInputProps(formEnhancements, 'kostenvoranschlag')}
-          placeholder="z. B. 2500"
+          placeholder=""
           value={fields.kostenvoranschlag !== undefined ? fields.kostenvoranschlag : (computedValues['kostenvoranschlag'] ?? '')}
           onChange={e => setFields(f => ({ ...f, kostenvoranschlag: clampNumberValue(formEnhancements, 'kostenvoranschlag', e.target.value) }))}
         />
@@ -437,9 +439,10 @@ export function LeistungskatalogDialog({ open, onClose, onSubmit, defaultValues,
         <Input
           id="stundensatz_leistung"
           type="number"
+          inputMode="decimal"
           step="any"
           {...numberInputProps(formEnhancements, 'stundensatz_leistung')}
-          placeholder="z. B. 95"
+          placeholder=""
           value={fields.stundensatz_leistung !== undefined ? fields.stundensatz_leistung : (computedValues['stundensatz_leistung'] ?? '')}
           onChange={e => setFields(f => ({ ...f, stundensatz_leistung: clampNumberValue(formEnhancements, 'stundensatz_leistung', e.target.value) }))}
         />
@@ -509,7 +512,7 @@ export function LeistungskatalogDialog({ open, onClose, onSubmit, defaultValues,
         <Label htmlFor="verfuegbarkeit">{fieldLabel('leistungskatalog', 'verfuegbarkeit')}</Label>
         <Textarea
           id="verfuegbarkeit"
-          placeholder="Verfügbarkeit, Besonderheiten..."
+          placeholder=""
           value={fields.verfuegbarkeit ?? ''}
           onChange={e => setFields(f => ({ ...f, verfuegbarkeit: e.target.value }))}
           rows={3}
@@ -910,7 +913,7 @@ export function LeistungskatalogDialog({ open, onClose, onSubmit, defaultValues,
           if (result?.id) {
             const newRec = { record_id: result.id, fields: newFields } as unknown as BeraterInnen;
             setExtraBeraterInnen(prev => [...prev, newRec]);
-            const url = createRecordUrl(APP_IDS['BERATER/INNEN'], result.id);
+            const url = createRecordUrl(APP_IDS.BERATERINNEN, result.id);
             setFields(prev => ({ ...prev, [createBeraterInnenField]: url } as any));
           }
           setCreateBeraterInnenOpen(false);

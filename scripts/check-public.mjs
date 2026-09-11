@@ -10,7 +10,7 @@
 // what the service must grant.
 
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { join, basename, dirname } from 'node:path';
 
 const PAGES_DIR = 'src/pages/public';
 const SURFACE = '_public/surface.json';
@@ -28,11 +28,17 @@ const ALLOWED_AT = [
   '@/components/widgets/',
   '@/lib/utils',
   '@/lib/formatters',
+  // The journey layer (port, rules, useStepForm, plan runner, public adapter)
+  // is door-agnostic by design — the internal adapter lives under
+  // '@/services/', which stays forbidden here.
+  '@/lib/journey',
+  '@/lib/journey/',
   '@/i18n',
   '@/types/',
 ];
 
 const errors = [];
+const warnings = [];
 
 function walk(dir) {
   const files = [];
@@ -44,11 +50,30 @@ function walk(dir) {
   return files;
 }
 
+// App metadata for type-aware field checks (present in every sandbox).
+let appMeta = null;
+try {
+  appMeta = JSON.parse(readFileSync('app_metadata.json', 'utf8'));
+} catch {
+  // metadata missing (e.g. local runs) — type checks are skipped
+}
+
 // ── 1. Import allowlist over agent-written pages ─────────────────────────
 const IMPORT_RE = /^\s*import\s[^;]*?from\s+['"]([^'"]+)['"]/gm;
-const pageFiles = existsSync(PAGES_DIR)
-  ? walk(PAGES_DIR).filter(f => !SCAFFOLD.has(basename(f)))
-  : [];
+// --file <path>: a lane's pre-flight over ONE staged page (check-staging.mjs)
+// — the per-page rules only; registry ↔ surface belongs to the integration band.
+const fileArgAt = process.argv.indexOf('--file');
+const fileArg = fileArgAt >= 0 ? process.argv[fileArgAt + 1] : null;
+const pageOnly = fileArg !== null;
+if (pageOnly && !existsSync(fileArg)) {
+  console.error(`ERROR: ${fileArg} does not exist`);
+  process.exit(1);
+}
+const pageFiles = pageOnly
+  ? [fileArg]
+  : existsSync(PAGES_DIR)
+    ? walk(PAGES_DIR).filter(f => !SCAFFOLD.has(basename(f)))
+    : [];
 for (const file of pageFiles) {
   const src = readFileSync(file, 'utf8');
   // A record reference written for the authenticated REST API is rejected by
@@ -61,6 +86,118 @@ for (const file of pageFiles) {
   // flag `/rest` wherever a delimiter follows (`/rest'`, `/rest"`,
   // backtick, `/rest/`) — that catches glued forms without tripping on
   // words like "/restaurants".
+  // 3g. A date is a form value, not a pixel. A native <input type="date"
+  //     defaultValue={today}> LOOKS filled while useStepForm holds nothing —
+  //     validation said "Ausgabedatum fehlt" over a visibly filled field, and
+  //     re-picking the shown day fires no change event (live). Dates render
+  //     through <DatePicker {...f.date('key')} />; initial values belong in
+  //     useStepForm(entity, { initial: { key: todayIso() } }).
+  for (const m of src.matchAll(/type\s*=\s*["'](date|datetime-local|time)["']/g)) {
+    const line = src.slice(0, m.index).split('\n').length;
+    errors.push(`${file}:${line}: native <input type="${m[1]}"> — use <DatePicker {...f.date('key')} /> from '@/components/DatePicker' (the form owns the value); a native date input with a default shows a day the form never has`);
+  }
+  // Visitors type their OWN data: useStepForm must switch browser autofill on
+  // (`autoComplete: true`) — the layer leaves it off by default because the
+  // dashboard's team enters other people's data. The generic PublicFormPage
+  // does it; a bespoke page has to say it.
+  for (const m of src.matchAll(/useStepForm\(\s*['"`][^'"`]+['"`]\s*(?:,\s*(\{[\s\S]*?\}))?\s*\)/g)) {
+    if (m[1] && /\bautoComplete\s*:\s*true\b/.test(m[1])) continue;
+    const line = src.slice(0, m.index).split('\n').length;
+    errors.push(`${file}:${line}: useStepForm(...) without autoComplete: true — visitors enter their OWN data, switch browser autofill on: useStepForm(entity, { ..., autoComplete: true })`);
+  }
+  for (const m of src.matchAll(/\bdefaultValue\s*=/g)) {
+    const line = src.slice(0, m.index).split('\n').length;
+    errors.push(`${file}:${line}: defaultValue on an input — initial values belong to the form: useStepForm(entity, { initial: { key: value } }) (dates: todayIso() from '@/lib/journey'); an uncontrolled default is never submitted and fails validation`);
+  }
+
+  // 3h. Every bound control sits under a label. The bindings carry id, value,
+  //     aria-* — not the label; a step with five bare inputs shipped (live).
+  //     <Field form={f} name="key"> renders label, hint and error from the
+  //     entity's rules; a hand-written <Label htmlFor={f.fieldId('key')}> also counts.
+  {
+    const bound = new Set();
+    for (const m of src.matchAll(/\.(?:field|number|date|choice|checkbox|record)\(\s*['"]([\w]+)['"]/g)) bound.add(m[1]);
+    for (const key of bound) {
+      const wrapped = new RegExp(`<Field\\b[^>]*\\bname=["']${key}["']`).test(src);
+      const labelled = new RegExp(`htmlFor=\\{[^}]*fieldId\\(\\s*['"]${key}['"]`).test(src);
+      if (!wrapped && !labelled) {
+        errors.push(`${file}: the control bound with f.…('${key}') has no label — wrap it: <Field form={f} name="${key}">…</Field> (label from the entity's rules, error and hint included; from '@/components/blocks/Field')`);
+      }
+    }
+  }
+
+  // 3i. The page may only render steps it declares. A live flow declared
+  //     three steps and rendered its review as step 4: the indicator said
+  //     "3 von 3", wizard.next() had nowhere to go, the last "Weiter" was dead.
+  {
+    const stepsLiteral = /steps=\{\s*\[([\s\S]*?)\]\s*\}/.exec(src) || /const\s+\w+(?:\s*:\s*WizardStep\[\])?\s*=\s*\[([\s\S]*?\blabel\b[\s\S]*?)\];/.exec(src);
+    if (stepsLiteral) {
+      const declared = (stepsLiteral[1].match(/\blabel\s*:/g) || []).length;
+      let rendered = 0;
+      for (const m of src.matchAll(/\b(?:step|currentStep|activeStep)\s*===\s*(\d+)/g)) rendered = Math.max(rendered, Number(m[1]));
+      if (declared > 0 && rendered > declared) {
+        errors.push(`${file}: renders step ${rendered} but declares only ${declared} step(s) in \`steps\` — add the missing step(s) (e.g. { label: 'Prüfen' }); the indicator, "Schritt n von m" and wizard.next() follow the array, so an undeclared step is unreachable`);
+      }
+    }
+  }
+
+
+  // 3j. useRecordSearch searches STRING fields only — the vSQL filter wraps
+  //     each field in `str(...).lower()`, so a lookup, date or number field
+  //     matches its raw storage form and effectively never hits. A typo names
+  //     a field the entity does not have, which silently searches nothing.
+  {
+    const RS_RE = /useRecordSearch\(\s*\w+\s*,\s*['"]([\w]+)['"]\s*,\s*\{[\s\S]*?searchFields\s*:\s*\[([^\]]*)\]/g;
+    for (const m of src.matchAll(RS_RE)) {
+      const entity = m[1];
+      const fields = [...m[2].matchAll(/['"]([\w]+)['"]/g)].map(x => x[1]);
+      const controls = appMeta?.apps?.[entity]?.controls;
+      if (appMeta && !controls) {
+        errors.push(`${file}: useRecordSearch names unknown entity '${entity}' — use the identifier from app_metadata.json`);
+        continue;
+      }
+      if (fields.length === 0) {
+        errors.push(`${file}: useRecordSearch('${entity}') has an empty searchFields — name 1–4 string fields users recognise a record by`);
+      }
+      for (const f of fields) {
+        const ft = controls?.[f]?.fulltype;
+        if (controls && !ft) {
+          errors.push(`${file}: useRecordSearch('${entity}') searchFields names '${f}', which '${entity}' does not have`);
+        } else if (ft && !ft.startsWith('string')) {
+          errors.push(`${file}: useRecordSearch('${entity}') searchFields '${f}' is ${ft} — only string fields are searchable (text, email, tel, textarea)`);
+        }
+      }
+    }
+  }
+
+  // `cond ? listPublicRecords(…) : Promise.resolve({})` — the untyped {}
+  // widens the Promise.all tuple, Object.values() then yields unknown[] and
+  // every `r.fields` access is TS18046 (11 errors in one live page, first
+  // seen by the integration build, one repair round).
+  const emptyFallback = /Promise\.resolve\(\s*\{\s*\}\s*\)/.exec(src);
+  if (emptyFallback) {
+    const line = src.slice(0, emptyFallback.index).split('\n').length;
+    errors.push(`${file}:${line}: Promise.resolve({}) — the untyped {} widens the result to unknown (TS18046 on every r.fields); write Promise.resolve<Record<string, PublicRecordResult>>({}) with \`import type { PublicRecordResult } from '@/lib/publicClient'\`, or drop the guard and call listPublicRecords unconditionally`);
+  }
+
+  // A useRecordSearch `filter` is server-side vSQL — a public grant cannot run
+  // it (allowed query: field/limit/offset), the public door silently ignores it
+  // and the visitor sees unfiltered records. `where` is the client-side
+  // restriction that works here.
+  for (const call of src.matchAll(/useRecordSearch\(/g)) {
+    const open = src.indexOf('{', call.index);
+    if (open < 0) continue;
+    let depth = 0, end = -1;
+    for (let k = open; k < src.length && k < open + 4000; k++) {
+      if (src[k] === '{') depth++;
+      else if (src[k] === '}' && --depth === 0) { end = k; break; }
+    }
+    if (end >= 0 && /\bfilter\s*:/.test(src.slice(open, end + 1))) {
+      const line = src.slice(0, call.index).split('\n').length;
+      errors.push(`${file}:${line}: useRecordSearch filter on a public page — grants cannot filter server-side, the restriction would be silently dropped; use where: r => … (client-side) or a narrower scope in _public/surface.json`);
+    }
+  }
+
   const restUrl = /\/rest['"`\/]/.exec(src);
   if (restUrl) {
     const line = src.slice(0, restUrl.index).split('\n').length;
@@ -120,6 +257,188 @@ for (const file of pageFiles) {
   }
 }
 
+// The agent's occupancy decision (src/config/journey.ts): which applookup is
+// the booked resource of a stay. Missing file or block → no rules.
+const JOURNEY_CONFIG = 'src/config/journey.ts';
+const occupancyRules = {};
+if (existsSync(JOURNEY_CONFIG)) {
+  const block = /\/\/ <custom:occupancy>([\s\S]*?)\/\/ <\/custom:occupancy>/.exec(readFileSync(JOURNEY_CONFIG, 'utf8'));
+  if (block) {
+    for (const m of block[1].matchAll(/^\s*['"]?([a-z0-9_]+)['"]?\s*:\s*\{([^}]*)\}\s*,?\s*$/gm)) {
+      const body = m[2];
+      const str = key => { const s = new RegExp(`\\b${key}\\s*:\\s*['"]([^'"]+)['"]`).exec(body); return s ? s[1] : undefined; };
+      occupancyRules[m[1]] = { from: str('from'), to: str('to'), resource: str('resource') };
+    }
+  }
+}
+
+// One endpoint of one page — the same checks in the tree run (surface.json)
+// and in a lane's pre-flight (a staged fragment next to the staged page).
+// `pageSrc` is the page's source when it exists (required-field and stay
+// checks read it), else null.
+function checkEndpoint(slug, ep, pageSrc, pageFile, where = SURFACE) {
+  // A public page can READ and CREATE — nothing else. There is no update,
+  // no delete: a grant that lets an anonymous visitor MODIFY an existing
+  // record is not something the platform hands out. A live build declared
+  // `op: 'update'` (to append a member to a meeting's participant list),
+  // hand-rolled its own PATCH, passed every gate, and was thrown away by
+  // the ingest AFTER the deploy — 304 lane-seconds for nothing, and the
+  // dashboard was left without any public page at all.
+  // "Register for an existing X" is therefore a CREATE in a registration
+  // entity, never an edit of X.
+  if (!['list', 'create'].includes(ep.op)) {
+    errors.push(`${where}: page '${slug}' endpoint '${ep.entity}' declares op '${ep.op}' — only 'list' (read) and 'create' (anonymous submit) exist. An anonymous visitor can never MODIFY an existing record: model the action as a create in a registration entity. If this page cannot be built that way, write _public/<slug>.blocked.json instead (see the public-builder skill) — never invent an op.`);
+  }
+  if (ep.scope && !ep.scope_description) {
+    errors.push(`${where}: page '${slug}' endpoint '${ep.entity}' has a scope but no scope_description — the owner confirms that text when publishing, never the vSQL`);
+  }
+  // The entity identifier must EXIST. Guessing it from the app's display
+  // name is the classic failure: an app called "Kurse & Workshops" has the
+  // identifier `kurse_workshops`, not `kurse_&_workshops`. The ingest then
+  // raises "unknown entity" and drops the WHOLE page — visible only as one
+  // [WARNING] line in the deploy stream, so the owner just sees nothing.
+  // Every check below silently passes for an unknown entity (`controls`
+  // falls back to {}), which is why this has to come first.
+  if (appMeta) {
+    const known = Object.keys(appMeta.apps || {});
+    if (!known.includes(ep.entity)) {
+      errors.push(`${where}: page '${slug}' references unknown entity '${ep.entity}' — use the IDENTIFIER from app_metadata.json, never the display name. Known: ${known.join(', ')}`);
+      return;
+    }
+    // Same trap one level down: a field key that does not exist is rejected
+    // by the ingest with "invalid field selection", again dropping the page.
+    const controlKeys = Object.keys(appMeta.apps[ep.entity].controls || {});
+    for (const key of [...(ep.fields || []), ...Object.keys(ep.preset_fields || {}), ...Object.keys(ep.default_fields || {})]) {
+      if (!controlKeys.includes(key)) {
+        errors.push(`${where}: page '${slug}' endpoint '${ep.entity}' references unknown field '${key}' — known fields: ${controlKeys.join(', ')}`);
+      }
+    }
+  }
+  // Scope shape: the server probes the vSQL expression when the grant is
+  // created (at publish) — a malformed scope fails silently late, so the
+  // known-fatal shapes are rejected here.
+  if (ep.scope) {
+    if (!/r\.v_\w+/.test(ep.scope)) {
+      errors.push(`${where}: page '${slug}' endpoint '${ep.entity}' scope '${ep.scope}' is not vSQL — fields are ALWAYS accessed as r.v_<field> (e.g. r.v_status == 'geplant'), never bare`);
+    }
+    if (/\b(true|false)\b/.test(ep.scope)) {
+      errors.push(`${where}: page '${slug}' endpoint '${ep.entity}' scope uses lowercase true/false — vSQL booleans are Python-style True/False (e.g. r.v_aktiv == True)`);
+    }
+    if (/\btoday\b/.test(ep.scope)) {
+      errors.push(`${where}: page '${slug}' endpoint '${ep.entity}' scope uses 'today' — vSQL has no today, the current time is now()`);
+    }
+  }
+  // A list endpoint without an explicit projection is rejected by the
+  // service — and an implicit "all fields" would be a data leak anyway.
+  // applookup fields ARE allowed (raw record URL, join client-side);
+  // file fields are not.
+  if (ep.op === 'list' && !(Array.isArray(ep.fields) && ep.fields.length > 0)) {
+    errors.push(`${where}: page '${slug}' endpoint '${ep.entity}' is a list without a "fields" projection — name exactly the columns the page shows`);
+  }
+  // file fields: READING is fine — a file URL answers an anonymous GET with
+  // 200 and `cache-control: public` (measured), so a listed logo or hero
+  // image simply renders. UPLOADING is not: /files is not grantable, so a
+  // visitor has nowhere to put the bytes and the service rejects the page.
+  if (ep.op === 'create' && Array.isArray(ep.fields) && appMeta) {
+    const controls = appMeta.apps?.[ep.entity]?.controls || {};
+    for (const key of ep.fields) {
+      if (controls[key]?.fulltype?.startsWith('file')) {
+        errors.push(`${where}: page '${slug}' endpoint '${ep.entity}' asks visitors to submit file field '${key}' — anonymous UPLOAD is impossible (/files is not grantable); drop it from the create endpoint (listing a file field for DISPLAY is fine)`);
+      }
+    }
+  }
+  // preset_fields are server-owned — a key listed in fields too would make
+  // the visitor's value win, defeating the preset.
+  const epFields = ep.fields || [];
+  for (const key of Object.keys(ep.preset_fields || {})) {
+    if (epFields.includes(key)) {
+      errors.push(`${where}: page '${slug}' endpoint '${ep.entity}' lists '${key}' in both fields and preset_fields — preset fields are server-owned, remove '${key}' from fields`);
+    }
+  }
+  // A required field the page DECLARES must also be submitted. Leaving an
+  // internally-required field out of the declaration is legal (internal
+  // requirement is an editing duty, not an entry duty) — but declaring it
+  // and never sending it makes EVERY submit fail with 400, and the page
+  // looks perfect until a visitor presses the button (live-proven with a
+  // reservation form and its required 'tisch').
+  if (ep.op === 'create' && appMeta) {
+    const controls = appMeta.apps?.[ep.entity]?.controls || {};
+    const preset = ep.preset_fields || {};
+    if (pageSrc !== null) {
+      for (const key of epFields) {
+        // `continue`, never `return`: a `return` here left checkEndpoint at the
+        // first optional field and skipped the stay-resource rule below (live:
+        // a booking page without its room passed the gate).
+        if (!controls[key]?.required || key in preset) continue;
+        const referenced = new RegExp(`(['"\`]${key}['"\`])|(\\b${key}\\s*:)`).test(pageSrc);
+        if (!referenced) {
+          errors.push(`${pageFile}: required field '${key}' of '${ep.entity}' is declared in ${where} but the page never submits it — either add an input for it (createPublicRecord must include '${key}') or drop '${key}' out of the endpoint's field projection so the team fills it internally`);
+        }
+      }
+    }
+    // The stay's resource is a FORM FIELD. The agent's occupancy rule names
+    // it; a page that kept the picked room in page state and handed it over
+    // through the plan's `values` lost it on reload (not in the draft), hid
+    // it from the summary and never validated it — a booking without its
+    // room was created live. useStepForm makes the resource required by
+    // itself, but only for a field it carries.
+    const stay = occupancyRules[ep.entity];
+    if (stay?.resource) {
+      if (!epFields.includes(stay.resource) && !(stay.resource in preset)) {
+        errors.push(`${where}: page '${slug}' creates '${ep.entity}', whose stay resource is '${stay.resource}' (src/config/journey.ts), but the create endpoint does not declare it — a record without its ${stay.resource} cannot be checked against occupancy; add '${stay.resource}' to fields`);
+      }
+      if (pageSrc !== null) {
+        const formRe = new RegExp(`useStepForm\\(\\s*['"\`]${ep.entity}['"\`]\\s*,\\s*\\{[\\s\\S]*?fields\\s*:\\s*\\[([^\\]]*)\\]`);
+        const form = formRe.exec(pageSrc);
+        if (form && !new RegExp(`['"\`]${stay.resource}['"\`]`).test(form[1])) {
+          errors.push(`${pageFile}: useStepForm('${ep.entity}', { fields: [...] }) omits the stay resource '${stay.resource}' — make it a form field (f.record('${stay.resource}'), or f.set('${stay.resource}', id, label) from the picker) instead of page state passed through the plan's values; only a form field survives a reload, appears in the summary and is validated`);
+        }
+      }
+    }
+  }
+}
+
+if (pageOnly) {
+  // The lane's fragment (.public-staging/<slug>.surface.json) gets the same
+  // endpoint checks as the merged surface — here, while the lane can still
+  // fix it. Live: a preset on a field the entity does not have passed the
+  // lane, and the first look at the fragment was the integration gate, after
+  // the lane was gone (a 35 s repair agent then "fixed" it the wrong way).
+  const stagedDir = dirname(fileArg);
+  const component = basename(fileArg, '.tsx');
+  let fragments = [];
+  try {
+    fragments = readdirSync(stagedDir).filter(f => f.endsWith('.surface.json')).map(f => join(stagedDir, f));
+  } catch {
+    // no staging dir (a page under src/pages/public/ checked directly)
+  }
+  const parsed = [];
+  for (const f of fragments) {
+    try {
+      parsed.push([f, JSON.parse(readFileSync(f, 'utf8'))]);
+    } catch (e) {
+      errors.push(`${f}: invalid JSON — ${e.message}`);
+    }
+  }
+  const own = parsed.filter(([, frag]) => frag && frag.component === component);
+  const mine = own.length ? own : (parsed.length === 1 ? parsed : []);
+  const stagedSrc = readFileSync(fileArg, 'utf8');
+  for (const [f, frag] of mine) {
+    const slug = frag.slug || basename(f, '.surface.json');
+    if (!Array.isArray(frag.endpoints) || frag.endpoints.length === 0) {
+      errors.push(`${f}: no "endpoints" — declare what the page reads (list) and writes (create)`);
+      continue;
+    }
+    for (const ep of frag.endpoints) checkEndpoint(slug, ep, stagedSrc, fileArg, f);
+  }
+  if (errors.length > 0) {
+    for (const e of errors) console.error(`ERROR: ${e}`);
+    process.exit(1);
+  }
+  console.log(`check-public: OK (staged page ${fileArg})`);
+  process.exit(0);
+}
+
 // ── 2. registry.tsx ↔ surface.json consistency ───────────────────────────
 const registrySlugs = new Map(); // slug -> imported module name
 if (existsSync(REGISTRY)) {
@@ -140,14 +459,6 @@ if (existsSync(REGISTRY)) {
   while ((m = VAR_REF_RE.exec(src)) !== null) {
     if (!registrySlugs.has(m[1]) && varFiles.has(m[2])) registrySlugs.set(m[1], varFiles.get(m[2]));
   }
-}
-
-// App metadata for type-aware field checks (present in every sandbox).
-let appMeta = null;
-try {
-  appMeta = JSON.parse(readFileSync('app_metadata.json', 'utf8'));
-} catch {
-  // metadata missing (e.g. local runs) — type checks are skipped
 }
 
 let surface = null;
@@ -205,7 +516,7 @@ for (const [slug, page] of surfacePages) {
     if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(String(lp.name || ''))) {
       errors.push(`${SURFACE}: page '${slug}' link_param.name '${lp.name}' is not a query-parameter identifier`);
     }
-    if (readsParam && src && !src.includes(String(lp.name || ' '))) {
+    if (readsParam && src && !src.includes(String(lp.name || '\u0000'))) {
       errors.push(`${SURFACE}: page '${slug}' declares link_param '${lp.name}' but ${page.component}.tsx never reads that name — the generated links would carry a parameter the page ignores`);
     }
     const listed = (page.endpoints || []).some(e => e.op === 'list' && e.entity === lp.entity);
@@ -213,110 +524,24 @@ for (const [slug, page] of surfacePages) {
       errors.push(`${SURFACE}: page '${slug}' link_param entity '${lp.entity}' has no list endpoint on this page — the page could not read the linked record`);
     }
   }
-  for (const ep of page.endpoints || []) {
-    // A public page can READ and CREATE — nothing else. There is no update,
-    // no delete: a grant that lets an anonymous visitor MODIFY an existing
-    // record is not something the platform hands out. A live build declared
-    // `op: 'update'` (to append a member to a meeting's participant list),
-    // hand-rolled its own PATCH, passed every gate, and was thrown away by
-    // the ingest AFTER the deploy — 304 lane-seconds for nothing, and the
-    // dashboard was left without any public page at all.
-    // "Register for an existing X" is therefore a CREATE in a registration
-    // entity, never an edit of X.
-    if (!['list', 'create'].includes(ep.op)) {
-      errors.push(`${SURFACE}: page '${slug}' endpoint '${ep.entity}' declares op '${ep.op}' — only 'list' (read) and 'create' (anonymous submit) exist. An anonymous visitor can never MODIFY an existing record: model the action as a create in a registration entity. If this page cannot be built that way, write _public/<slug>.blocked.json instead (see the public-builder skill) — never invent an op.`);
-    }
-    if (ep.scope && !ep.scope_description) {
-      errors.push(`${SURFACE}: page '${slug}' endpoint '${ep.entity}' has a scope but no scope_description — the owner confirms that text when publishing, never the vSQL`);
-    }
-    // The entity identifier must EXIST. Guessing it from the app's display
-    // name is the classic failure: an app called "Kurse & Workshops" has the
-    // identifier `kurse_workshops`, not `kurse_&_workshops`. The ingest then
-    // raises "unknown entity" and drops the WHOLE page — visible only as one
-    // [WARNING] line in the deploy stream, so the owner just sees nothing.
-    // Every check below silently passes for an unknown entity (`controls`
-    // falls back to {}), which is why this has to come first.
-    if (appMeta) {
-      const known = Object.keys(appMeta.apps || {});
-      if (!known.includes(ep.entity)) {
-        errors.push(`${SURFACE}: page '${slug}' references unknown entity '${ep.entity}' — use the IDENTIFIER from app_metadata.json, never the display name. Known: ${known.join(', ')}`);
-        continue;
-      }
-      // Same trap one level down: a field key that does not exist is rejected
-      // by the ingest with "invalid field selection", again dropping the page.
-      const controlKeys = Object.keys(appMeta.apps[ep.entity].controls || {});
-      for (const key of [...(ep.fields || []), ...Object.keys(ep.preset_fields || {}), ...Object.keys(ep.default_fields || {})]) {
-        if (!controlKeys.includes(key)) {
-          errors.push(`${SURFACE}: page '${slug}' endpoint '${ep.entity}' references unknown field '${key}' — known fields: ${controlKeys.join(', ')}`);
-        }
-      }
-    }
-    // Scope shape: the server probes the vSQL expression when the grant is
-    // created (at publish) — a malformed scope fails silently late, so the
-    // known-fatal shapes are rejected here.
-    if (ep.scope) {
-      if (!/r\.v_\w+/.test(ep.scope)) {
-        errors.push(`${SURFACE}: page '${slug}' endpoint '${ep.entity}' scope '${ep.scope}' is not vSQL — fields are ALWAYS accessed as r.v_<field> (e.g. r.v_status == 'geplant'), never bare`);
-      }
-      if (/\b(true|false)\b/.test(ep.scope)) {
-        errors.push(`${SURFACE}: page '${slug}' endpoint '${ep.entity}' scope uses lowercase true/false — vSQL booleans are Python-style True/False (e.g. r.v_aktiv == True)`);
-      }
-      if (/\btoday\b/.test(ep.scope)) {
-        errors.push(`${SURFACE}: page '${slug}' endpoint '${ep.entity}' scope uses 'today' — vSQL has no today, the current time is now()`);
-      }
-    }
-    // A list endpoint without an explicit projection is rejected by the
-    // service — and an implicit "all fields" would be a data leak anyway.
-    // applookup fields ARE allowed (raw record URL, join client-side);
-    // file fields are not.
-    if (ep.op === 'list' && !(Array.isArray(ep.fields) && ep.fields.length > 0)) {
-      errors.push(`${SURFACE}: page '${slug}' endpoint '${ep.entity}' is a list without a "fields" projection — name exactly the columns the page shows`);
-    }
-    // file fields: READING is fine — a file URL answers an anonymous GET with
-    // 200 and `cache-control: public` (measured), so a listed logo or hero
-    // image simply renders. UPLOADING is not: /files is not grantable, so a
-    // visitor has nowhere to put the bytes and the service rejects the page.
-    if (ep.op === 'create' && Array.isArray(ep.fields) && appMeta) {
-      const controls = appMeta.apps?.[ep.entity]?.controls || {};
-      for (const key of ep.fields) {
-        if (controls[key]?.fulltype?.startsWith('file')) {
-          errors.push(`${SURFACE}: page '${slug}' endpoint '${ep.entity}' asks visitors to submit file field '${key}' — anonymous UPLOAD is impossible (/files is not grantable); drop it from the create endpoint (listing a file field for DISPLAY is fine)`);
-        }
-      }
-    }
-    // preset_fields are server-owned — a key listed in fields too would make
-    // the visitor's value win, defeating the preset.
-    const epFields = ep.fields || [];
-    for (const key of Object.keys(ep.preset_fields || {})) {
-      if (epFields.includes(key)) {
-        errors.push(`${SURFACE}: page '${slug}' endpoint '${ep.entity}' lists '${key}' in both fields and preset_fields — preset fields are server-owned, remove '${key}' from fields`);
-      }
-    }
-    // A required field the page DECLARES must also be submitted. Leaving an
-    // internally-required field out of the declaration is legal (internal
-    // requirement is an editing duty, not an entry duty) — but declaring it
-    // and never sending it makes EVERY submit fail with 400, and the page
-    // looks perfect until a visitor presses the button (live-proven with a
-    // reservation form and its required 'tisch').
-    if (ep.op === 'create' && appMeta) {
-      const controls = appMeta.apps?.[ep.entity]?.controls || {};
-      const preset = ep.preset_fields || {};
-      const module = registrySlugs.get(slug);
-      const pageFile = module ? join(PAGES_DIR, `${module}.tsx`) : null;
-      const pageSrc = pageFile && existsSync(pageFile) ? readFileSync(pageFile, 'utf8') : null;
-      if (pageSrc !== null) {
-        for (const key of epFields) {
-          if (!controls[key]?.required || key in preset) continue;
-          const referenced = new RegExp(`(['"\`]${key}['"\`])|(\\b${key}\\s*:)`).test(pageSrc);
-          if (!referenced) {
-            errors.push(`${pageFile}: required field '${key}' of '${ep.entity}' is declared in ${SURFACE} but the page never submits it — either add an input for it (createPublicRecord must include '${key}') or drop '${key}' out of the endpoint's field projection so the team fills it internally`);
-          }
-        }
-      }
+  {
+    const module = registrySlugs.get(slug);
+    const pageFile = module ? join(PAGES_DIR, `${module}.tsx`) : null;
+    const pageSrc = pageFile && existsSync(pageFile) ? readFileSync(pageFile, 'utf8') : null;
+    for (const ep of page.endpoints || []) checkEndpoint(slug, ep, pageSrc, pageFile);
+    // The plan runner writes through the public port, and the port creates
+    // through EVERY create endpoint of the page. A hand-written
+    // createPublicRecord next to it rebuilds what the port does — and got the
+    // second target wrong once the surface was reordered (live: a guest
+    // created by hand, the booking refused as 'not this page's entity').
+    if (pageSrc !== null && /useJourneySubmit\(/.test(pageSrc) && /createPublicRecord\(/.test(pageSrc)) {
+      const line = pageSrc.slice(0, pageSrc.search(/createPublicRecord\(/)).split('\n').length;
+      warnings.push(`${pageFile}:${line}: createPublicRecord(…) next to useJourneySubmit — make it a plan step ({ key, entity, form, needs, link }); the port creates through every create endpoint the page declares`);
     }
   }
 }
 
+for (const w of warnings) console.log(`WARN: ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`ERROR: ${e}`);
   process.exit(1);

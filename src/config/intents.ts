@@ -43,9 +43,9 @@ export interface IntentLink {
 
 export const INTENTS: IntentLink[] = [
   // <custom:intents>
-  { path: '/intents/stunden-erfassen', label: { de: 'Stunden erfassen', en: 'Log hours' }, icon: IconClockPlus, description: 'Arbeitszeit in 3 Schritten einem Projekt zubuchen' },
-  { path: '/intents/angebot-erstellen', label: { de: 'Angebot erstellen', en: 'Create offer' }, icon: IconFileText, description: 'Neues Angebot mit Nummer und Kundenzuordnung anlegen' },
-  { path: '/intents/rechnung-erstellen', label: { de: 'Rechnung erstellen', en: 'Create invoice' }, icon: IconReceipt, description: 'Rechnung aus Projekt und Zeiterfassung generieren' },
+  { path: '/intents/stunden-erfassen', label: { de: 'Stunden erfassen', en: 'Log hours' }, icon: IconClockPlus, description: { de: 'Arbeitszeit in 3 Schritten einem Projekt zubuchen', en: 'Book working time to a project in 3 steps' } },
+  { path: '/intents/angebot-erstellen', label: { de: 'Angebot erstellen', en: 'Create offer' }, icon: IconFileText, description: { de: 'Neues Angebot mit Nummer und Kundenzuordnung anlegen', en: 'Create new quote with number and customer assignment' } },
+  { path: '/intents/rechnung-erstellen', label: { de: 'Rechnung erstellen', en: 'Create invoice' }, icon: IconReceipt, description: { de: 'Rechnung aus Projekt und Zeiterfassung generieren', en: 'Generate invoice from project and time tracking' } },
   // </custom:intents>
 ];
 
@@ -57,3 +57,13 @@ export const INTENTS: IntentLink[] = [
  * never ran).
  */
 export const INTENTS_PENDING = false;
+
+/**
+ * When the Phase-1 bundle was deployed (ISO, set by the service together with
+ * INTENTS_PENDING). The sidebar stops showing the ghost row PENDING_MAX_MINUTES
+ * later on its own: a Phase 2 that ended red (or never ran) used to leave a
+ * pulsing "werden erstellt …" in every deployed Phase-1 bundle forever — no
+ * code path redeploys Phase 1 without the flag (live 03.09.2026).
+ */
+export const INTENTS_PENDING_SINCE: string | null = null;
+export const PENDING_MAX_MINUTES = 30;

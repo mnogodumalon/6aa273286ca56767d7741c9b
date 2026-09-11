@@ -1,9 +1,8 @@
 # Scaffold Context — Generated File Contents
 
 These files are pre-generated. Do NOT Read the pre-generated source files — their contracts and contents are in THIS file and in the key-file parts listed below.
-Key file contents (types/app.ts, livingAppsService.ts, App.tsx, Layout.tsx, hooks/libs) are in .scaffold_files_p1, .scaffold_files_p2 — Read each of them with ONE Read right after this file.
+Key file contents (types/app.ts, livingAppsService.ts, App.tsx, Layout.tsx, hooks/libs) are in .scaffold_files_p1, .scaffold_files_p2, .scaffold_files_p3 — Read each of them with ONE Read right after this file.
 EXCEPTION: DashboardOverview.tsx is NOT included here. You MUST Read it with the Read tool before Write.
-AdminPage.tsx is pre-generated but NOT inlined — Read it only if you need to reference its structure.
 Your job: Analyze data (1-2 sentences), Read then Write DashboardOverview.tsx (once), build.
 Large custom UI blocks (a self-contained concept of ~60+ lines no widget covers) are NOT written inline: dictate the props interface in a brief, dispatch build_components (ONE call, all components), write the Overview against your own interface, and call await_components before any gate or build — see CLAUDE.md Step 1b.
 DashboardOverview receives LOADED data as a prop (`{ data }: { data: DashboardData }`) — src/pages/DashboardReady.tsx (generator-owned) runs useDashboardData() and the loading/error surfaces before the page mounts. Do NOT call useDashboardData() in the page and write NO loading/error early-return; hooks may sit anywhere in the component body.
@@ -15,7 +14,7 @@ index.css is pre-generated with the shared design system. Do NOT edit it.
 src/config/ai-features.ts is editable — set AI_PHOTO_SCAN['Entity'] = true to enable photo scan in dialogs.
 NEVER use Bash cat/echo/heredoc for file operations — always use Read/Write/Edit tools.
 
-Generated 131 scaffold files:
+Generated 139 scaffold files:
   - src/App.tsx
   - src/i18n/index.ts
   - src/i18n/common.ts
@@ -24,8 +23,6 @@ Generated 131 scaffold files:
   - src/components/Layout.tsx
   - src/types/la-widgets.d.ts
   - src/components/PageShell.tsx
-  - src/components/ActionsSidebar.tsx
-  - src/pages/DashboardOverview.tsx
   - src/pages/DashboardReady.tsx
   - src/components/DashboardStates.tsx
   - src/components/ConfirmDialog.tsx
@@ -46,21 +43,18 @@ Generated 131 scaffold files:
   - scripts/wire-intent.mjs
   - scripts/i18n-tx.mjs
   - scripts/heal-tsc.mjs
+  - scripts/heal-gates.mjs
+  - scripts/check-staging.mjs
+  - scripts/check-vsql.mjs
   - src/components/Combobox.tsx
   - src/components/DatePicker.tsx
   - .placeholder-tasks.json
   - src/config/form-enhancements/types.ts
-  - src/config/form-enhancements/BeraterInnen.ts
-  - src/config/form-enhancements/Kunden.ts
-  - src/config/form-enhancements/Leistungskatalog.ts
-  - src/config/form-enhancements/Projekte.ts
-  - src/config/form-enhancements/Angebote.ts
-  - src/config/form-enhancements/Zeiterfassung.ts
-  - src/config/form-enhancements/Rechnungen.ts
   - scripts/parse-formulas.mjs
   - scripts/apply-placeholders.mjs
   - src/config/intents.ts
   - src/components/IntentsNav.tsx
+  - src/components/NavRows.tsx
   - src/components/blocks/IntentWizardShell.tsx
   - src/components/IntentWizardShell.tsx
   - src/components/blocks/EntitySelectStep.tsx
@@ -70,6 +64,38 @@ Generated 131 scaffold files:
   - src/components/blocks/StatusBadge.tsx
   - src/components/StatusBadge.tsx
   - src/components/blocks/AvailabilityRangePicker.tsx
+  - src/components/blocks/SummaryStep.tsx
+  - src/components/blocks/SuccessStep.tsx
+  - src/components/blocks/StepNav.tsx
+  - src/components/blocks/ChoiceGroup.tsx
+  - src/components/blocks/FieldErrorSummary.tsx
+  - src/components/blocks/Field.tsx
+  - src/components/blocks/Bound.tsx
+  - src/components/blocks/InlineCreate.tsx
+  - src/lib/journey/port.ts
+  - src/lib/journey/format.ts
+  - src/lib/journey/reference.ts
+  - src/lib/journey/draft.ts
+  - src/lib/journey/occupancy.ts
+  - src/lib/journey/selectMode.ts
+  - src/lib/journey/search.ts
+  - src/lib/journey/fields.ts
+  - src/lib/journey/recordLabels.ts
+  - src/lib/journey/flowLinks.ts
+  - src/lib/journey/useOccupancy.ts
+  - src/lib/journey/useRecordCount.ts
+  - src/lib/journey/useRecordSearch.ts
+  - src/lib/journey/useStepForm.ts
+  - src/lib/journey/useJourneySubmit.ts
+  - src/lib/journey/summary.ts
+  - src/lib/journey/index.ts
+  - src/lib/journey/publicPort.ts
+  - src/lib/journey/publicColumn.ts
+  - src/lib/journey/rules.ts
+  - src/lib/journey/messages.ts
+  - src/services/journeyPort.ts
+  - src/config/journey.ts
+  - scripts/check-journey.mjs
   - src/index.css
   - src/lib/origin.ts
   - src/lib/sentry.ts
@@ -77,7 +103,6 @@ Generated 131 scaffold files:
   - src/lib/ai.ts
   - src/components/VersionCheck.tsx
   - src/components/AttachmentsSection.tsx
-  - src/config/ai-features.ts
   - src/lib/formatters.ts
   - src/lib/polish.ts
   - src/hooks/useDashboardData.ts
@@ -86,9 +111,13 @@ Generated 131 scaffold files:
   - src/pages/public/registry.tsx
   - src/pages/public/PublicPage.tsx
   - src/components/PublicShell.tsx
-  - src/components/PublicPagesNav.tsx
   - src/lib/publicPagesAdmin.ts
   - src/pages/PublicPagesAdmin.tsx
+  - src/lib/pageJobs.ts
+  - src/components/PageJobDialog.tsx
+  - src/pages/IntentsAdmin.tsx
+  - src/hooks/usePageJobs.ts
+  - src/components/PageJobStatus.tsx
   - src/types/enriched.ts
   - src/lib/enrich.ts
   - src/components/AddressAutocomplete.tsx
@@ -108,45 +137,23 @@ Generated 131 scaffold files:
   - src/components/widgets/ChartWidget.tsx
   - src/components/widgets/ChartWidget.example.tsx
   - tsconfig.app.json
-  - src/pages/BeraterInnenPage.tsx
-  - src/components/dialogs/BeraterInnenDialog.tsx
-  - src/components/dialogs/BeraterInnenViewDialog.tsx
-  - src/pages/BeraterInnenDetailPage.tsx
-  - src/components/details/BeraterInnenDetails.tsx
-  - src/pages/KundenPage.tsx
-  - src/components/dialogs/KundenDialog.tsx
-  - src/components/dialogs/KundenViewDialog.tsx
-  - src/pages/KundenDetailPage.tsx
-  - src/components/details/KundenDetails.tsx
-  - src/pages/LeistungskatalogPage.tsx
-  - src/components/dialogs/LeistungskatalogDialog.tsx
-  - src/components/dialogs/LeistungskatalogViewDialog.tsx
-  - src/pages/LeistungskatalogDetailPage.tsx
-  - src/components/details/LeistungskatalogDetails.tsx
-  - src/pages/ProjektePage.tsx
-  - src/components/dialogs/ProjekteDialog.tsx
-  - src/components/dialogs/ProjekteViewDialog.tsx
-  - src/pages/ProjekteDetailPage.tsx
-  - src/components/details/ProjekteDetails.tsx
-  - src/pages/AngebotePage.tsx
-  - src/components/dialogs/AngeboteDialog.tsx
-  - src/components/dialogs/AngeboteViewDialog.tsx
-  - src/pages/AngeboteDetailPage.tsx
-  - src/components/details/AngeboteDetails.tsx
-  - src/pages/ZeiterfassungPage.tsx
   - src/components/dialogs/ZeiterfassungDialog.tsx
-  - src/components/dialogs/ZeiterfassungViewDialog.tsx
-  - src/pages/ZeiterfassungDetailPage.tsx
   - src/components/details/ZeiterfassungDetails.tsx
-  - src/pages/RechnungenPage.tsx
   - src/components/dialogs/RechnungenDialog.tsx
-  - src/components/dialogs/RechnungenViewDialog.tsx
-  - src/pages/RechnungenDetailPage.tsx
   - src/components/details/RechnungenDetails.tsx
+  - src/components/dialogs/ProjekteDialog.tsx
+  - src/components/details/ProjekteDetails.tsx
+  - src/components/dialogs/LeistungskatalogDialog.tsx
+  - src/components/details/LeistungskatalogDetails.tsx
+  - src/components/dialogs/KundenDialog.tsx
+  - src/components/details/KundenDetails.tsx
+  - src/components/dialogs/BeraterInnenDialog.tsx
+  - src/components/details/BeraterInnenDetails.tsx
+  - src/components/dialogs/AngeboteDialog.tsx
+  - src/components/details/AngeboteDetails.tsx
   - src/components/EntityCrud.tsx
   - src/types/leaflet-plugins.d.ts
-  - src/pages/AdminPage.tsx
-  - src/components/dialogs/BulkEditDialog.tsx
+  - .lane-context.md
 
 ## The enrich() output contract
 
@@ -160,29 +167,6 @@ WRONG: `{ type: 'rechnung'; record: Rechnungen }` … `top.record.kundeName` (TS
 ```
 import type { Angebote, BeraterInnen, Kunden, Leistungskatalog, Projekte, Rechnungen, Zeiterfassung } from './app';
 
-export type EnrichedBeraterInnen = BeraterInnen & {
-  leistungenName: string;
-  projekteName: string;
-};
-
-export type EnrichedKunden = Kunden & {
-  laufende_projekteName: string;
-};
-
-export type EnrichedLeistungskatalog = Leistungskatalog & {
-  beraterName: string;
-};
-
-export type EnrichedProjekte = Projekte & {
-  kundeName: string;
-  projektleitungName: string;
-};
-
-export type EnrichedAngebote = Angebote & {
-  projektName: string;
-  kundeName: string;
-};
-
 export type EnrichedZeiterfassung = Zeiterfassung & {
   beraterName: string;
   projektName: string;
@@ -195,6 +179,29 @@ export type EnrichedRechnungen = Rechnungen & {
   beraterName: string;
 };
 
+export type EnrichedProjekte = Projekte & {
+  kundeName: string;
+  projektleitungName: string;
+};
+
+export type EnrichedLeistungskatalog = Leistungskatalog & {
+  beraterName: string;
+};
+
+export type EnrichedKunden = Kunden & {
+  laufende_projekteName: string;
+};
+
+export type EnrichedBeraterInnen = BeraterInnen & {
+  leistungenName: string;
+  projekteName: string;
+};
+
+export type EnrichedAngebote = Angebote & {
+  kundeName: string;
+  projektName: string;
+};
+
 ```
 
 ## Localized entity names — appLabel(), never a literal
@@ -202,19 +209,19 @@ export type EnrichedRechnungen = Rechnungen & {
 `appLabel(key)` from '@/i18n' returns the entity name in the ACTIVE language.
 These are ALL the keys; the names are shown for orientation only:
 
-  appLabel('berater/innen')     →  Berater/innen
-  appLabel('kunden')            →  Kunden
-  appLabel('leistungskatalog')  →  Leistungskatalog
-  appLabel('projekte')          →  Projekte
-  appLabel('angebote')          →  Angebote
   appLabel('zeiterfassung')     →  Zeiterfassung
   appLabel('rechnungen')        →  Rechnungen
+  appLabel('projekte')          →  Projekte
+  appLabel('leistungskatalog')  →  Leistungskatalog
+  appLabel('kunden')            →  Kunden
+  appLabel('berater/innen')     →  Berater/innen
+  appLabel('angebote')          →  Angebote
 
-WRONG: `title="Berater/innen"` — and equally wrong: a local helper that returns
+WRONG: `title="Zeiterfassung"` — and equally wrong: a local helper that returns
        that literal behind an `i18n-exempt` marker. Gate 21 and the mechanical
        healer both SKIP that marker, so the label stays frozen in one language
        and NOTHING reports it.
-RIGHT: `title={appLabel('berater/innen')}`
+RIGHT: `title={appLabel('zeiterfassung')}`
 
 ## Component API cheatsheet
 
@@ -282,7 +289,7 @@ contracts; Read one only if the contract below is insufficient.
  *   const crud = useEntityCrud(data, {
  *     // optional — the ONE semantic slot on the overlay: the record's next
  *     // workflow step. Return undefined for types without one.
- *     footer: (top) => top.type === 'beraterInnen'
+ *     footer: (top) => top.type === 'zeiterfassung'
  *       ? { label: …, onClick: () => … }
  *       : undefined,
  *   });
@@ -290,14 +297,14 @@ contracts; Read one only if the contract below is insufficient.
  *   `top.type` is the SAME camelCase key as `crud.<entity>` — one spelling
  *   per entity, everywhere in this API.
  *   …
- *   crud.beraterInnen.openCreate({ …defaults })   // create dialog, prefilled — defaults are
+ *   crud.zeiterfassung.openCreate({ …defaults })   // create dialog, prefilled — defaults are
  *                                       // shape-tolerant: bare lookup keys / record ids are fine
- *   crud.beraterInnen.openEdit(record)            // edit dialog (recordId + defaults wired)
- *   crud.beraterInnen.openDetail(record)          // record overlay — pass the RAW record,
+ *   crud.zeiterfassung.openEdit(record)            // edit dialog (recordId + defaults wired)
+ *   crud.zeiterfassung.openDetail(record)          // record overlay — pass the RAW record,
  *                                       // enrichment is resolved inside
  *   crud.overlay                         // RecordOverlayStack<OverlayItem> for drills:
  *                                       // push / pop / replace / close
- *   crud.enriched.beraterInnen              // the display-ready array for EVERY entity —
+ *   crud.enriched.zeiterfassung              // the display-ready array for EVERY entity —
  *                                       // Enriched* where relations exist, the raw array
  *                                       // otherwise. Reuse these; never call enrich*()
  *                                       // in the page, and never guess which entity has
@@ -313,13 +320,13 @@ contracts; Read one only if the contract below is insufficient.
  *
  * Overlay content per entity (the host renders these — you never compose
  * Details blocks yourself):
- *   berater/innen: nachname, vorname, titel, strasse, hausnummer, plz, ort, email_beruflich, …  ·  → leistungskatalog · → projekte · ← leistungskatalog (list + contextual +) · ← projekte (list + contextual +) · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual +)
- *   kunden: kundenname, kundentyp, email, telefon, strasse, hausnummer, plz, ort, …  ·  → projekte · ← projekte (list + contextual +) · ← angebote (list + contextual +) · ← rechnungen (list + contextual +)
- *   leistungskatalog: berater, leistungsbezeichnung, leistungstyp, beschreibung, kostenvoranschlag, stundensatz_leistung, einheit, verfuegbarkeit  ·  → berater/innen · ← berater/innen (list + contextual +) · ← zeiterfassung (list + contextual +)
- *   projekte: projektkennung, projektnummer, projektart, projektstart_jahr, projektstart_monat, status, ansprechpartner_kunde, letzter_schritt, …  ·  → kunden · → berater/innen · ← berater/innen (list + contextual +) · ← kunden (list + contextual +) · ← angebote (list + contextual +) · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual +)
- *   angebote: angebotsnummer, angebotsjahr, angebotstyp, angebotsdatum, gueltig_bis, zeitrahmen_anfang, zeitrahmen_ende, dauer, …  ·  → projekte · → kunden
  *   zeiterfassung: datum, stunden, monat, jahr, taetigkeitsbeschreibung, verrechenbar, notizen, berater, …  ·  → berater/innen · → projekte · → leistungskatalog
  *   rechnungen: rechnungsnummer, rechnungsdatum, faelligkeitsdatum, rechnungsstatus, abrechnungsmonat, abrechnungsjahr, nettobetrag, mehrwertsteuer, …  ·  → kunden · → projekte · → berater/innen
+ *   projekte: budget, projektkennung, projektnummer, projektart, projektstart_jahr, projektstart_monat, status, ansprechpartner_kunde, …  ·  → kunden · → berater/innen · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual +) · ← kunden (list + contextual +) · ← berater/innen (list + contextual +) · ← angebote (list + contextual +)
+ *   leistungskatalog: berater, leistungsbezeichnung, leistungstyp, beschreibung, kostenvoranschlag, stundensatz_leistung, einheit, verfuegbarkeit  ·  → berater/innen · ← zeiterfassung (list + contextual +) · ← berater/innen (list + contextual +)
+ *   kunden: kundenname, kundentyp, email, telefon, strasse, hausnummer, plz, ort, …  ·  → projekte · ← rechnungen (list + contextual +) · ← projekte (list + contextual +) · ← angebote (list + contextual +)
+ *   berater/innen: nachname, vorname, titel, strasse, hausnummer, plz, ort, email_beruflich, …  ·  → leistungskatalog · → projekte · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual +) · ← projekte (list + contextual +) · ← leistungskatalog (list + contextual +)
+ *   angebote: kunde, angebotsnummer, angebotsjahr, angebotstyp, angebotsdatum, gueltig_bis, zeitrahmen_anfang, zeitrahmen_ende, …  ·  → kunden · → projekte
  */
 ```
 

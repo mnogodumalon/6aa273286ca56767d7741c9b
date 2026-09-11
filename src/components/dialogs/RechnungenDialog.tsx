@@ -30,6 +30,7 @@ import type { ComputedContext } from '@/config/form-enhancements/types';
 import { applyFieldOrder, flattenFieldOrder, applyDefaults, evalComputed, numberInputProps, clampNumberValue, classifyComputed, extractApplookupRefs, mergeApplookupRefs, resolveApplookupRef } from '@/config/form-enhancements/types';
 import { formEnhancements, computedDeps, computedApplookupRefs } from '@/config/form-enhancements/Rechnungen';
 import { AttachmentsSection } from '@/components/AttachmentsSection';
+import { requiredMessage } from '@/lib/journey/messages';
 import { t, appLabel, fieldLabel, lookupLabel, localeTag, CURRENCY } from '@/i18n';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -79,7 +80,7 @@ const NORMALIZE_LOOKUPS: Record<string, readonly { key: string; label: string }[
 const NORMALIZE_APPLOOKUPS: Record<string, string> = {
   kunde: APP_IDS.KUNDEN,
   projekt: APP_IDS.PROJEKTE,
-  berater: APP_IDS['BERATER/INNEN'],
+  berater: APP_IDS.BERATERINNEN,
 };
 function normalizeDefaults(values: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...values };
@@ -325,7 +326,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         }
       }
       const photoContext = contextParts.length ? contextParts.join('\n') : undefined;
-      const schema = `{\n  "rechnungsnummer": string | null, // Rechnungsnummer\n  "rechnungsdatum": string | null, // YYYY-MM-DD\n  "faelligkeitsdatum": string | null, // YYYY-MM-DD\n  "rechnungsstatus": LookupValue | null, // Rechnungsstatus (select one key: "offen" | "bezahlt" | "storniert" | "ueberfaellig") mapping: offen=Offen, bezahlt=Bezahlt, storniert=Storniert, ueberfaellig=Überfällig\n  "abrechnungsmonat": LookupValue | null, // Abrechnungsmonat (select one key: "januar" | "februar" | "maerz" | "april" | "mai" | "juni" | "juli" | "august" | "september" | "oktober" | "november" | "dezember") mapping: januar=Januar, februar=Februar, maerz=März, april=April, mai=Mai, juni=Juni, juli=Juli, august=August, september=September, oktober=Oktober, november=November, dezember=Dezember\n  "abrechnungsjahr": string | null, // Abrechnungsjahr\n  "nettobetrag": number | null, // Nettobetrag (€)\n  "mehrwertsteuer": number | null, // Mehrwertsteuer (%)\n  "gesamtbetrag": number | null, // Gesamtbetrag (€)\n  "zahlungseingang": string | null, // YYYY-MM-DD\n  "leistungspositionen": string | null, // Leistungspositionen\n  "notizen": string | null, // Notizen\n  "kunde": string | null, // Display name from Kunden (see <available-records>)\n  "projekt": string | null, // Display name from Projekte (see <available-records>)\n  "berater": string[] | null, // Display names from Berater/innen, one per referenced record (see <available-records>)\n}`;
+      const schema = `{\n  "rechnungsnummer": string | null, // Rechnungsnummer\n  "rechnungsdatum": string | null, // YYYY-MM-DD\n  "faelligkeitsdatum": string | null, // YYYY-MM-DD\n  "rechnungsstatus": LookupValue | null, // Rechnungsstatus (select one key: "bezahlt" | "storniert" | "ueberfaellig" | "offen") mapping: bezahlt=Bezahlt, storniert=Storniert, ueberfaellig=Überfällig, offen=Offen\n  "abrechnungsmonat": LookupValue | null, // Abrechnungsmonat (select one key: "januar" | "februar" | "maerz" | "april" | "mai" | "juni" | "juli" | "august" | "september" | "oktober" | "november" | "dezember") mapping: januar=Januar, februar=Februar, maerz=März, april=April, mai=Mai, juni=Juni, juli=Juli, august=August, september=September, oktober=Oktober, november=November, dezember=Dezember\n  "abrechnungsjahr": string | null, // Abrechnungsjahr\n  "nettobetrag": number | null, // Nettobetrag (€)\n  "mehrwertsteuer": number | null, // Mehrwertsteuer (%)\n  "gesamtbetrag": number | null, // Gesamtbetrag (€)\n  "zahlungseingang": string | null, // YYYY-MM-DD\n  "leistungspositionen": string | null, // Leistungspositionen\n  "notizen": string | null, // Notizen\n  "kunde": string | null, // Display name from Kunden (see <available-records>)\n  "projekt": string | null, // Display name from Projekte (see <available-records>)\n  "berater": string[] | null, // Display names from Berater/innen, one per referenced record (see <available-records>)\n}`;
       const raw = await extractFromInput<Record<string, unknown>>(schema, {
         dataUri: uri,
         userText: aiText.trim() || undefined,
@@ -358,7 +359,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
           const beraterUrls = (beraterNames as unknown[])
             .map(n => beraterInnenList.find(r => matchName(String(n), [[r.fields.vorname ?? '', r.fields.nachname ?? ''].filter(Boolean).join(' ')])))
             .filter((r): r is NonNullable<typeof r> => Boolean(r))
-            .map(r => createRecordUrl(APP_IDS['BERATER/INNEN'], r.record_id));
+            .map(r => createRecordUrl(APP_IDS.BERATERINNEN, r.record_id));
           if (beraterUrls.length > 0) merged['berater'] = beraterUrls;
         }
         return merged as Partial<Rechnungen['fields']>;
@@ -422,13 +423,13 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Label htmlFor="rechnungsnummer">{fieldLabel('rechnungen', 'rechnungsnummer')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Input
           id="rechnungsnummer"
-          placeholder="z. B. RE-2024-001"
+          placeholder=""
           value={fields.rechnungsnummer ?? ''}
           onChange={e => setFields(f => ({ ...f, rechnungsnummer: e.target.value }))}
           required
         />
         {showErrors && !fields.rechnungsnummer && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('rechnungen', 'rechnungsnummer')}</p>
         )}
       </div>
     ),
@@ -437,14 +438,14 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Label htmlFor="rechnungsdatum">{fieldLabel('rechnungen', 'rechnungsdatum')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <DatePicker
           id="rechnungsdatum"
-          placeholder="Heute, oder wann?"
+          placeholder=""
           mode="date"
           value={fields.rechnungsdatum ?? null}
           onChange={v => setFields(f => ({ ...f, rechnungsdatum: v ?? undefined }))}
           required
         />
         {showErrors && !fields.rechnungsdatum && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('rechnungen', 'rechnungsdatum')}</p>
         )}
       </div>
     ),
@@ -453,7 +454,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Label htmlFor="faelligkeitsdatum">{fieldLabel('rechnungen', 'faelligkeitsdatum')}</Label>
         <DatePicker
           id="faelligkeitsdatum"
-          placeholder="Zahlungsfrist wählen"
+          placeholder=""
           mode="date"
           value={fields.faelligkeitsdatum ?? null}
           onChange={v => setFields(f => ({ ...f, faelligkeitsdatum: v ?? undefined }))}
@@ -464,19 +465,6 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
       <div key="rechnungsstatus" className="space-y-1.5">
         <Label htmlFor="rechnungsstatus">{fieldLabel('rechnungen', 'rechnungsstatus')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <div role="radiogroup" className="flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={lookupKey(fields.rechnungsstatus) === 'offen'}
-            onClick={() => setFields(f => ({ ...f, rechnungsstatus: (lookupKey(f.rechnungsstatus) === 'offen' ? undefined : 'offen') as any }))}
-            className={`inline-flex items-center justify-center min-h-9 max-sm:min-h-11 max-sm:px-4 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-              lookupKey(fields.rechnungsstatus) === 'offen'
-                ? 'bg-foreground text-background border-foreground'
-                : 'bg-background text-foreground border-input hover:bg-accent'
-            }`}
-          >
-            {lookupLabel('rechnungen', 'rechnungsstatus', 'offen') ?? 'Offen'}
-          </button>
           <button
             type="button"
             role="radio"
@@ -516,9 +504,22 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
           >
             {lookupLabel('rechnungen', 'rechnungsstatus', 'ueberfaellig') ?? 'Überfällig'}
           </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={lookupKey(fields.rechnungsstatus) === 'offen'}
+            onClick={() => setFields(f => ({ ...f, rechnungsstatus: (lookupKey(f.rechnungsstatus) === 'offen' ? undefined : 'offen') as any }))}
+            className={`inline-flex items-center justify-center min-h-9 max-sm:min-h-11 max-sm:px-4 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              lookupKey(fields.rechnungsstatus) === 'offen'
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-background text-foreground border-input hover:bg-accent'
+            }`}
+          >
+            {lookupLabel('rechnungen', 'rechnungsstatus', 'offen') ?? 'Offen'}
+          </button>
         </div>
         {showErrors && !fields.rechnungsstatus && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('rechnungen', 'rechnungsstatus')}</p>
         )}
       </div>
     ),
@@ -529,7 +530,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
           value={lookupKey(fields.abrechnungsmonat) ?? ''}
           onValueChange={v => setFields(f => ({ ...f, abrechnungsmonat: v === 'none' ? undefined : v as any }))}
         >
-          <SelectTrigger id="abrechnungsmonat" className="max-sm:h-11"><SelectValue placeholder="z. B. Januar, Februar" /></SelectTrigger>
+          <SelectTrigger id="abrechnungsmonat" className="max-sm:h-11"><SelectValue placeholder="" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">—</SelectItem>
             <SelectItem value="januar">{lookupLabel('rechnungen', 'abrechnungsmonat', 'januar') ?? 'Januar'}</SelectItem>
@@ -553,7 +554,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Label htmlFor="abrechnungsjahr">{fieldLabel('rechnungen', 'abrechnungsjahr')}</Label>
         <Input
           id="abrechnungsjahr"
-          placeholder="z. B. 2024"
+          placeholder=""
           value={fields.abrechnungsjahr ?? ''}
           onChange={e => setFields(f => ({ ...f, abrechnungsjahr: e.target.value }))}
         />
@@ -565,9 +566,10 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Input
           id="nettobetrag"
           type="number"
+          inputMode="decimal"
           step="any"
           {...numberInputProps(formEnhancements, 'nettobetrag')}
-          placeholder="z. B. 10000"
+          placeholder=""
           value={fields.nettobetrag !== undefined ? fields.nettobetrag : (computedValues['nettobetrag'] ?? '')}
           onChange={e => setFields(f => ({ ...f, nettobetrag: clampNumberValue(formEnhancements, 'nettobetrag', e.target.value) }))}
         />
@@ -579,9 +581,10 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Input
           id="mehrwertsteuer"
           type="number"
+          inputMode="decimal"
           step="any"
           {...numberInputProps(formEnhancements, 'mehrwertsteuer')}
-          placeholder="z. B. 19"
+          placeholder=""
           value={fields.mehrwertsteuer !== undefined ? fields.mehrwertsteuer : (computedValues['mehrwertsteuer'] ?? '')}
           onChange={e => setFields(f => ({ ...f, mehrwertsteuer: clampNumberValue(formEnhancements, 'mehrwertsteuer', e.target.value) }))}
         />
@@ -593,14 +596,15 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Input
           id="gesamtbetrag"
           type="number"
+          inputMode="decimal"
           step="any"
           {...numberInputProps(formEnhancements, 'gesamtbetrag')}
-          placeholder="Wird berechnet, ggf. überschreiben"
+          placeholder=""
           value={fields.gesamtbetrag !== undefined ? fields.gesamtbetrag : (computedValues['gesamtbetrag'] ?? '')}
           onChange={e => setFields(f => ({ ...f, gesamtbetrag: clampNumberValue(formEnhancements, 'gesamtbetrag', e.target.value) }))}
         />
         {showErrors && !fields.gesamtbetrag && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('rechnungen', 'gesamtbetrag')}</p>
         )}
       </div>
     ),
@@ -609,7 +613,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Label htmlFor="zahlungseingang">{fieldLabel('rechnungen', 'zahlungseingang')}</Label>
         <DatePicker
           id="zahlungseingang"
-          placeholder="Wenn bezahlt wählen"
+          placeholder=""
           mode="date"
           value={fields.zahlungseingang ?? null}
           onChange={v => setFields(f => ({ ...f, zahlungseingang: v ?? undefined }))}
@@ -621,7 +625,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Label htmlFor="leistungspositionen">{fieldLabel('rechnungen', 'leistungspositionen')}</Label>
         <Textarea
           id="leistungspositionen"
-          placeholder="Eine Position pro Zeile"
+          placeholder=""
           value={fields.leistungspositionen ?? ''}
           onChange={e => setFields(f => ({ ...f, leistungspositionen: e.target.value }))}
           rows={3}
@@ -633,7 +637,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Label htmlFor="notizen">{fieldLabel('rechnungen', 'notizen')}</Label>
         <Textarea
           id="notizen"
-          placeholder="Besonderheiten, Hinweise..."
+          placeholder=""
           value={fields.notizen ?? ''}
           onChange={e => setFields(f => ({ ...f, notizen: e.target.value }))}
           rows={3}
@@ -715,7 +719,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Label htmlFor="kunde">{fieldLabel('rechnungen', 'kunde')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Combobox
           id="kunde"
-          placeholder="Welcher Kunde?"
+          placeholder=""
           items={kundenListAll.map(r => ({
             id: r.record_id,
             label: String(r.fields.kundenname ?? r.record_id),
@@ -726,7 +730,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
           createLabel={t('create_in', { entity: appLabel('kunden') })}
         />
         {showErrors && !fields.kunde && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('rechnungen', 'kunde')}</p>
         )}
       </div>
     ),
@@ -735,7 +739,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Label htmlFor="projekt">{fieldLabel('rechnungen', 'projekt')} <span className="text-destructive" aria-hidden="true">*</span></Label>
         <Combobox
           id="projekt"
-          placeholder="Zugeordnetes Projekt"
+          placeholder=""
           items={projekteListAll.map(r => ({
             id: r.record_id,
             label: String(r.fields.projektkennung ?? r.record_id),
@@ -746,7 +750,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
           createLabel={t('create_in', { entity: appLabel('projekte') })}
         />
         {showErrors && !fields.projekt && (
-          <p className="text-xs text-destructive mt-1">{t('required_hint')}</p>
+          <p className="text-xs text-destructive mt-1" role="alert">{requiredMessage('rechnungen', 'projekt')}</p>
         )}
       </div>
     ),
@@ -755,13 +759,13 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
         <Label htmlFor="berater">{fieldLabel('rechnungen', 'berater')}</Label>
         <MultiCombobox
           id="berater"
-          placeholder="Beteiligte Berater/innen"
+          placeholder=""
           items={beraterInnenListAll.map(r => ({
             id: r.record_id,
             label: String(r.fields.nachname ?? r.record_id),
           }))}
           values={extractRecordIds(fields.berater)}
-          onChange={ids => setFields(f => ({ ...f, berater: ids.length ? ids.map(id => createRecordUrl(APP_IDS['BERATER/INNEN'], id)) as any : undefined }))}
+          onChange={ids => setFields(f => ({ ...f, berater: ids.length ? ids.map(id => createRecordUrl(APP_IDS.BERATERINNEN, id)) as any : undefined }))}
           onCreateNew={(q) => openCreateBeraterInnen("berater", q)}
           createLabel={t('create_in', { entity: appLabel('berater/innen') })}
         />
@@ -787,7 +791,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
   // eine Map { lookupKey: label } für ALLE Felder des Target-Schemas. Wird
   // beim Render-Walk gefiltert auf die in der computed-Formel tatsächlich
   // referenzierten lookupKeys (siehe applookupRefs unten).
-  const APPLOOKUP_LABELS: Record<string, Record<string, string>> = {"kunde": {"kundenname": "Name / Firmenname", "kundentyp": "Kundentyp", "email": "E-Mail", "telefon": "Telefon", "strasse": "Straße", "hausnummer": "Hausnummer", "plz": "Postleitzahl", "ort": "Ort", "re_strasse": "Rechnungsstraße", "re_hausnummer": "Rechnungs-Hausnummer", "re_plz": "Rechnungs-Postleitzahl", "re_ort": "Rechnungs-Ort", "anlagedatum": "Anlagedatum", "ap_titel": "Titel Ansprechpartner", "ap_vorname": "Vorname Ansprechpartner", "ap_nachname": "Nachname Ansprechpartner", "ap_email": "E-Mail Ansprechpartner", "ap_telefon": "Telefon Ansprechpartner", "bevorzugte_kontaktart": "Bevorzugte Kontaktart", "letzter_kontakt_datum": "Datum letzter Kontakt", "letzter_kontakt_ansprechpartner": "Ansprechpartner beim letzten Kontakt", "notizen": "Notizen", "laufende_projekte": "Aktuell laufende Projekte"}, "projekt": {"projektkennung": "Projektkennung", "projektnummer": "Projektnummer", "projektart": "Projektart", "projektstart_jahr": "Startjahr", "projektstart_monat": "Startmonat", "status": "Projektstatus", "ansprechpartner_kunde": "Ansprechpartner beim Kunden", "letzter_schritt": "Letzter Schritt / aktueller Stand", "projektende": "Geplantes Projektende", "notizen": "Notizen", "kunde": "Kunde", "projektleitung": "Projektleitung"}, "berater": {"nachname": "Nachname", "vorname": "Vorname", "titel": "Titel (optional)", "strasse": "Straße", "hausnummer": "Hausnummer", "plz": "Postleitzahl", "ort": "Ort", "email_beruflich": "E-Mail (beruflich)", "email_privat": "E-Mail (privat)", "telefon": "Telefon", "einstiegsdatum": "Einstiegsdatum", "status": "Status", "stundensatz": "Stundensatz (€/h)", "sonstiges_1": "Sonstige Anmerkungen (1)", "sonstiges_2": "Sonstige Anmerkungen (2)", "stunden_aktueller_monat": "Gebuchte Stunden – aktueller Monat", "stunden_aktuelles_quartal": "Gebuchte Stunden – aktuelles Quartal", "stunden_aktuelles_jahr": "Gebuchte Stunden – aktuelles Jahr", "stunden_letzter_monat": "Gebuchte Stunden – letzter Monat", "stunden_letztes_quartal": "Gebuchte Stunden – letztes Quartal", "stunden_letztes_jahr": "Gebuchte Stunden – letztes Jahr", "leistungen": "Erbringbare Leistungen", "projekte": "Aktuell zugewiesene Projekte"}};
+  const APPLOOKUP_LABELS: Record<string, Record<string, string>> = {"kunde": {"kundenname": "Name / Firmenname", "kundentyp": "Kundentyp", "email": "E-Mail", "telefon": "Telefon", "strasse": "Straße", "hausnummer": "Hausnummer", "plz": "Postleitzahl", "ort": "Ort", "re_strasse": "Rechnungsstraße", "re_hausnummer": "Rechnungs-Hausnummer", "re_plz": "Rechnungs-Postleitzahl", "re_ort": "Rechnungs-Ort", "anlagedatum": "Anlagedatum", "ap_titel": "Titel Ansprechpartner", "ap_vorname": "Vorname Ansprechpartner", "ap_nachname": "Nachname Ansprechpartner", "ap_email": "E-Mail Ansprechpartner", "ap_telefon": "Telefon Ansprechpartner", "bevorzugte_kontaktart": "Bevorzugte Kontaktart", "letzter_kontakt_datum": "Datum letzter Kontakt", "letzter_kontakt_ansprechpartner": "Ansprechpartner beim letzten Kontakt", "notizen": "Notizen", "laufende_projekte": "Aktuell laufende Projekte"}, "projekt": {"budget": "Budget (€)", "projektkennung": "Projektkennung", "projektnummer": "Projektnummer", "projektart": "Projektart", "projektstart_jahr": "Startjahr", "projektstart_monat": "Startmonat", "status": "Projektstatus", "ansprechpartner_kunde": "Ansprechpartner beim Kunden", "letzter_schritt": "Letzter Schritt / aktueller Stand", "projektende": "Geplantes Projektende", "notizen": "Notizen", "kunde": "Kunde", "projektleitung": "Projektleitung"}, "berater": {"nachname": "Nachname", "vorname": "Vorname", "titel": "Titel (optional)", "strasse": "Straße", "hausnummer": "Hausnummer", "plz": "Postleitzahl", "ort": "Ort", "email_beruflich": "E-Mail (beruflich)", "email_privat": "E-Mail (privat)", "telefon": "Telefon", "einstiegsdatum": "Einstiegsdatum", "status": "Status", "stundensatz": "Stundensatz (€/h)", "sonstiges_1": "Sonstige Anmerkungen (1)", "sonstiges_2": "Sonstige Anmerkungen (2)", "stunden_aktueller_monat": "Gebuchte Stunden – aktueller Monat", "stunden_aktuelles_quartal": "Gebuchte Stunden – aktuelles Quartal", "stunden_aktuelles_jahr": "Gebuchte Stunden – aktuelles Jahr", "stunden_letzter_monat": "Gebuchte Stunden – letzter Monat", "stunden_letztes_quartal": "Gebuchte Stunden – letztes Quartal", "stunden_letztes_jahr": "Gebuchte Stunden – letztes Jahr", "leistungen": "Erbringbare Leistungen", "projekte": "Aktuell zugewiesene Projekte"}};
   const inputFields = useMemo(() => flattenFieldOrder(orderedFields), [orderedFieldsKey]);
   const backendFieldSet = useMemo(() => new Set(inputFields), [inputFields.join(',')]);
   const virtualComputed = useMemo(
@@ -1202,7 +1206,7 @@ export function RechnungenDialog({ open, onClose, onSubmit, defaultValues, recor
           if (result?.id) {
             const newRec = { record_id: result.id, fields: newFields } as unknown as BeraterInnen;
             setExtraBeraterInnen(prev => [...prev, newRec]);
-            const url = createRecordUrl(APP_IDS['BERATER/INNEN'], result.id);
+            const url = createRecordUrl(APP_IDS.BERATERINNEN, result.id);
             setFields(prev => ({ ...prev, [createBeraterInnenField]: url } as any));
           }
           setCreateBeraterInnenOpen(false);
