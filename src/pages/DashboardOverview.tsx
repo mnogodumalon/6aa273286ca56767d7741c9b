@@ -1,11 +1,12 @@
 import type { DashboardData } from '@/hooks/useDashboardData';
+import { useNavigate } from 'react-router-dom';
 import { useEntityCrud } from '@/components/EntityCrud';
 import { useMemo, useState, useEffect } from 'react';
 import { tx, appLabel } from '@/i18n';
 import { useClock, gruss, namen, undoToast } from '@/lib/polish';
 import { formatDate, formatCurrency, lookupKey } from '@/lib/formatters';
 import { lookupOption, LOOKUP_OPTIONS } from '@/types/app';
-import { LivingAppsService } from '@/services/livingAppsService';
+import { extractRecordId, LivingAppsService } from '@/services/livingAppsService';
 import { format } from 'date-fns';
 import { DashboardGrid } from '@/components/DashboardGrid';
 import { StatStrip, StatStripItem } from '@/components/StatCard';
@@ -57,6 +58,7 @@ export default function DashboardOverview({ data }: { data: DashboardData }) {
   const enrichedRechnungen = crud.enriched.rechnungen;
   const enrichedZeiterfassung = crud.enriched.zeiterfassung;
 
+  const navigate = useNavigate();
   const clock = useClock();
   const today = format(clock, 'yyyy-MM-dd');
 
@@ -107,21 +109,50 @@ export default function DashboardOverview({ data }: { data: DashboardData }) {
     [],
   );
 
+  // Per-project stats for richer kanban cards
+  const projektStats = useMemo(() => {
+    const stats: Record<string, { stunden: number; offeneRechnungen: number }> = {};
+    projekte.forEach(p => {
+      const pid = p.record_id;
+      const stunden = zeiterfassung
+        .filter(z => extractRecordId(z.fields.projekt) === pid)
+        .reduce((s, z) => s + (z.fields.stunden ?? 0), 0);
+      const offeneRechnungen = rechnungen.filter(r => {
+        if (extractRecordId(r.fields.projekt) !== pid) return false;
+        const st = lookupKey(r.fields.rechnungsstatus);
+        return st === 'offen' || st === 'ueberfaellig';
+      }).length;
+      stats[pid] = { stunden, offeneRechnungen };
+    });
+    return stats;
+  }, [projekte, zeiterfassung, rechnungen]);
+
   // Kanban cards (filtered if needed)
   const cards = useMemo<KanbanCard[]>(() => {
     const filtered = statusFilter ? projekte.filter(p => lookupKey(p.fields.status) === statusFilter) : projekte;
     return filtered.map(p => {
       const status = lookupKey(p.fields.status) ?? '';
       const enriched = enrichedProjekte.find(ep => ep.record_id === p.record_id);
+      const stats = projektStats[p.record_id];
+      const isUeberfaellig = p.fields.projektende && p.fields.projektende < today && status !== 'abgeschlossen';
+      const subtitleParts: string[] = [];
+      if (enriched?.kundeName) subtitleParts.push(enriched.kundeName);
+      else if (p.fields.projektart?.label) subtitleParts.push(p.fields.projektart.label);
+      const meta: string[] = [];
+      if (stats?.stunden) meta.push(`${stats.stunden} h`);
+      if (stats?.offeneRechnungen) meta.push(`${stats.offeneRechnungen} offen`);
+      if (p.fields.projektende && !isUeberfaellig) meta.push(formatDate(p.fields.projektende));
+      if (isUeberfaellig) meta.push(`⚠ ${formatDate(p.fields.projektende)}`);
+      const subtitle = [...subtitleParts, ...meta].join(' · ') || undefined;
       return {
         id: `projekt:${p.record_id}`,
         column: status,
         title: p.fields.projektkennung ?? tx('Ohne Kennung'),
-        subtitle: enriched?.kundeName || p.fields.projektart?.label,
-        tone: toneForProjektStatus(status),
+        subtitle,
+        tone: isUeberfaellig ? 'warning' : toneForProjektStatus(status),
       };
     });
-  }, [projekte, enrichedProjekte, statusFilter]);
+  }, [projekte, enrichedProjekte, statusFilter, projektStats, today]);
 
   // Compute next sequential Projekt-ID candidate for current year
   const nextProjektKennung = useMemo(() => {
@@ -132,9 +163,20 @@ export default function DashboardOverview({ data }: { data: DashboardData }) {
   }, [clock, projekte]);
 
   // Move project status (kanban drag)
-  const moveProjekt = async (cardId: string, newColumn: string) => {
+  const moveProjekt = async (cardId: string, newColumn: string): Promise<string | void> => {
     const rid = cardId.split(':')[1];
     if (!rid) return;
+    // Block moving to "Abgeschlossen" if open invoices exist
+    if (newColumn === 'abgeschlossen') {
+      const projektRechnungen = rechnungen.filter(r => extractRecordId(r.fields.projekt) === rid);
+      const hasOffene = projektRechnungen.some(r => {
+        const st = lookupKey(r.fields.rechnungsstatus);
+        return st === 'offen' || st === 'ueberfaellig';
+      });
+      if (hasOffene) {
+        return tx('Noch offene Rechnungen — bitte zuerst begleichen.');
+      }
+    }
     const prev = projekte.map(p => ({ ...p }));
     setProjekte(old => old.map(p =>
       p.record_id === rid
@@ -336,8 +378,7 @@ export default function DashboardOverview({ data }: { data: DashboardData }) {
             defaultCollapsed={['abgeschlossen']}
             onCardClick={card => {
               const rid = card.id.split(':')[1];
-              const proj = projekte.find(p => p.record_id === rid);
-              if (proj) crud.projekte.openDetail(proj);
+              if (rid) navigate(`/projekt/${rid}`);
             }}
             onCardMove={moveProjekt}
             onAddCard={column => crud.projekte.openCreate({ status: column, projektkennung: nextProjektKennung })}

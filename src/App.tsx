@@ -13,6 +13,7 @@ import IntentsAdmin from '@/pages/IntentsAdmin';
 const IntentStundenErfassenPage = lazy(() => import('@/pages/intents/StundenErfassenPage'));
 const IntentAngebotErstellenPage = lazy(() => import('@/pages/intents/AngebotErstellenPage'));
 const IntentRechnungErstellenPage = lazy(() => import('@/pages/intents/RechnungErstellenPage'));
+const ProjektDetailPage = lazy(() => import('@/pages/ProjektDetailPage'));
 // </custom:imports>
 
 // Lazy: public pages live outside <Layout> and only load on /#/public/:slug —
@@ -83,6 +84,7 @@ export default function App() {
                 <Route path="intents/stunden-erfassen" element={<Suspense fallback={null}><IntentStundenErfassenPage /></Suspense>} />
                 <Route path="intents/angebot-erstellen" element={<Suspense fallback={null}><IntentAngebotErstellenPage /></Suspense>} />
                 <Route path="intents/rechnung-erstellen" element={<Suspense fallback={null}><IntentRechnungErstellenPage /></Suspense>} />
+                <Route path="projekt/:id" element={<Suspense fallback={null}><ProjektDetailPage /></Suspense>} />
                 {/* </custom:routes> */}
                 {/* An unknown hash (a bookmark from before a rebuild renamed the
                     flows, a mistyped link) must not be a blank page. */}

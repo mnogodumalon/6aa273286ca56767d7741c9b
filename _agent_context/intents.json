@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "flows": [],
+  "unregistered_pages": [
+    {
+      "file": "src/pages/intents/AngebotErstellenPage.tsx",
+      "summary": "/**\n * Angebot erstellen — 3-Schritt-Wizard.\n * Steps: 1) Kunde wählen (+ optional Projekt) → 2) Angebotsdetails eintragen →\n *        3) Kosten & Zeitrahmen festlegen → Angebot anlegen.\n * Reads: kunden, projekte. Writes: angebote (createAngeboteEntry).\n * Composes: IntentWizardShell, EntitySelectStep, StatusBadge.\n */",
+      "components": [
+        "Button",
+        "Card",
+        "CardContent",
+        "EntitySelectStep",
+        "Input",
+        "IntentWizardShell",
+        "Label",
+        "Select",
+        "SelectContent",
+        "SelectItem",
+        "SelectTrigger",
+        "SelectValue",
+        "StatusBadge",
+        "Textarea"
+      ],
+      "writes": [
+        "createAngeboteEntry",
+        "createKundenEntry"
+      ]
+    },
+    {
+      "file": "src/pages/intents/RechnungErstellenPage.tsx",
+      "summary": "/**\n * Rechnung erstellen — 3-Schritt-Wizard.\n * Steps: 1) Projekt + Kunde wählen → 2) Zeiterfassung prüfen + Abrechnungszeitraum wählen → 3) Rechnungsdetails eintragen & anlegen.\n * Reads: projekte, kunden, zeiterfassung, beraterInnen. Writes: rechnungen (createRechnungenEntry).\n * Composes: IntentWizardShell, EntitySelectStep, StatusBadge.\n */",
+      "components": [
+        "Button",
+        "EntitySelectStep",
+        "Input",
+        "IntentWizardShell",
+        "Select",
+        "SelectContent",
+        "SelectItem",
+        "SelectTrigger",
+        "SelectValue",
+        "StatusBadge",
+        "Textarea"
+      ],
+      "writes": [
+        "createRechnungenEntry"
+      ]
+    },
+    {
+      "file": "src/pages/intents/StundenErfassenPage.tsx",
+      "summary": "/**\n * Stunden erfassen — 3-Schritt-Wizard zum Anlegen eines Zeiterfassungseintrags.\n * Steps: 1) Berater/in wählen → 2) Projekt + Leistung wählen → 3) Stunden & Details eingeben.\n * Reads: beraterInnen (filter: aktiv), projekte (filter: in_bearbeitung|akquise), leistungskatalog.\n * Writes: zeiterfassung (createZeiterfassungEntry).\n * Composes: IntentWizardShell, EntitySelectStep, StatusBadge.\n */",
+      "components": [
+        "Button",
+        "EntitySelectStep",
+        "Input",
+        "IntentWizardShell",
+        "Label",
+        "Select",
+        "SelectContent",
+        "SelectItem",
+        "SelectTrigger",
+        "SelectValue",
+        "StatusBadge",
+        "Textarea"
+      ],
+      "writes": [
+        "createZeiterfassungEntry"
+      ]
+    }
+  ]
+}
