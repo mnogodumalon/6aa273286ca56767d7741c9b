@@ -12,16 +12,20 @@ export interface LeistungskatalogDetailsProps {
   record: Leistungskatalog;
   /** N:1-Ziel „BeraterInnen": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   beraterInnenList: BeraterInnen[];
-  /** Zeilen-Klick → overlay.push auf das BeraterInnen-Detail (nie der Edit-Dialog). */
-  onOpenBeraterInnen: (record: BeraterInnen) => void;
-  /** Kontextuelles „+": öffnet den BeraterInnen-Dialog mit diesem Record vorgesetzt. */
-  onAddBeraterInnen: () => void;
+  /** Reserviert — BeraterInnen ist hier nur über ein Mehrfach-Feld verknüpft (Text-Join, keine Einzel-Relation); Übergabe erlaubt, aber ohne Wirkung. */
+  onOpenBeraterInnen?: (record: BeraterInnen) => void;
   /** 1:N „Zeiterfassung" (leistung): VOLLE Liste — der Block filtert auf diesen Record. */
   zeiterfassungList: Zeiterfassung[];
   /** Zeilen-Klick → overlay.push auf das Zeiterfassung-Detail (nie der Edit-Dialog). */
   onOpenZeiterfassung: (record: Zeiterfassung) => void;
   /** Kontextuelles „+": öffnet den Zeiterfassung-Dialog mit diesem Record vorgesetzt. */
   onAddZeiterfassung: () => void;
+  /** 1:N „Berater/innen" (leistungen): VOLLE Liste — der Block filtert auf diesen Record. */
+  beraterInnenLeistungenList: BeraterInnen[];
+  /** Zeilen-Klick → overlay.push auf das BeraterInnen-Detail (nie der Edit-Dialog). */
+  onOpenBeraterInnenLeistungen: (record: BeraterInnen) => void;
+  /** Kontextuelles „+": öffnet den BeraterInnen-Dialog mit diesem Record vorgesetzt. */
+  onAddBeraterInnenLeistungen: () => void;
 }
 
 export function LeistungskatalogDetails({
@@ -30,8 +34,9 @@ export function LeistungskatalogDetails({
   zeiterfassungList,
   onOpenZeiterfassung,
   onAddZeiterfassung,
-  onOpenBeraterInnen,
-  onAddBeraterInnen,
+  beraterInnenLeistungenList,
+  onOpenBeraterInnenLeistungen,
+  onAddBeraterInnenLeistungen,
 }: LeistungskatalogDetailsProps) {
   return (
     <>
@@ -56,11 +61,11 @@ export function LeistungskatalogDetails({
       />
 
       <SatelliteSection
-        title={appLabel('berater/innen')}
-        items={beraterInnenList.filter(r => Array.isArray(r.fields.leistungen) && r.fields.leistungen.some((u: unknown) => extractRecordId(u) === record.record_id))}
+        title={`${appLabel('berater/innen')} · ${fieldLabel('berater/innen', 'leistungen')}`}
+        items={beraterInnenLeistungenList.filter(r => Array.isArray(r.fields.leistungen) && r.fields.leistungen.some((u: unknown) => extractRecordId(u) === record.record_id))}
         map={r => ({ name: r.fields.nachname ?? appLabel('berater/innen'), meta: r.fields.einstiegsdatum })}
-        onOpen={onOpenBeraterInnen}
-        onAdd={onAddBeraterInnen}
+        onOpen={onOpenBeraterInnenLeistungen}
+        onAdd={onAddBeraterInnenLeistungen}
         getKey={r => r.record_id}
       />
 

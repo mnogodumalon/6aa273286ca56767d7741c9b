@@ -1,23 +1,6 @@
 {
   "version": 1,
-  "changes": [
-    {
-      "kind": "field_added",
-      "entity": "projekte",
-      "field": "budget",
-      "fulltype": "number",
-      "label": "Budget (€)"
-    },
-    {
-      "kind": "field_added",
-      "entity": "angebote",
-      "field": "angebotsstatus",
-      "fulltype": "lookup/select",
-      "label": "Angebotsstatus"
-    }
-  ],
-  "counts": {
-    "field_added": 2
-  },
-  "harmless_only": false
+  "changes": [],
+  "counts": {},
+  "harmless_only": true
 }

@@ -13,15 +13,11 @@ export interface ProjekteDetailsProps {
   /** N:1-Ziel „Kunden": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   kundenList: Kunden[];
   /** Klick auf die Kunden-Relation → overlay.push auf dessen Detail. */
-  onOpenKunden: (record: Kunden) => void;
-  /** Kontextuelles „+": öffnet den Kunden-Dialog mit diesem Record vorgesetzt. */
-  onAddKunden: () => void;
+  onOpenKunden?: (record: Kunden) => void;
   /** N:1-Ziel „BeraterInnen": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   beraterInnenList: BeraterInnen[];
   /** Klick auf die BeraterInnen-Relation → overlay.push auf dessen Detail. */
-  onOpenBeraterInnen: (record: BeraterInnen) => void;
-  /** Kontextuelles „+": öffnet den BeraterInnen-Dialog mit diesem Record vorgesetzt. */
-  onAddBeraterInnen: () => void;
+  onOpenBeraterInnen?: (record: BeraterInnen) => void;
   /** 1:N „Zeiterfassung" (projekt): VOLLE Liste — der Block filtert auf diesen Record. */
   zeiterfassungList: Zeiterfassung[];
   /** Zeilen-Klick → overlay.push auf das Zeiterfassung-Detail (nie der Edit-Dialog). */
@@ -34,6 +30,18 @@ export interface ProjekteDetailsProps {
   onOpenRechnungen: (record: Rechnungen) => void;
   /** Kontextuelles „+": öffnet den Rechnungen-Dialog mit diesem Record vorgesetzt. */
   onAddRechnungen: () => void;
+  /** 1:N „Kunden" (laufende_projekte): VOLLE Liste — der Block filtert auf diesen Record. */
+  kundenLaufendeProjekteList: Kunden[];
+  /** Zeilen-Klick → overlay.push auf das Kunden-Detail (nie der Edit-Dialog). */
+  onOpenKundenLaufendeProjekte: (record: Kunden) => void;
+  /** Kontextuelles „+": öffnet den Kunden-Dialog mit diesem Record vorgesetzt. */
+  onAddKundenLaufendeProjekte: () => void;
+  /** 1:N „Berater/innen" (projekte): VOLLE Liste — der Block filtert auf diesen Record. */
+  beraterInnenProjekteList: BeraterInnen[];
+  /** Zeilen-Klick → overlay.push auf das BeraterInnen-Detail (nie der Edit-Dialog). */
+  onOpenBeraterInnenProjekte: (record: BeraterInnen) => void;
+  /** Kontextuelles „+": öffnet den BeraterInnen-Dialog mit diesem Record vorgesetzt. */
+  onAddBeraterInnenProjekte: () => void;
   /** 1:N „Angebote" (projekt): VOLLE Liste — der Block filtert auf diesen Record. */
   angeboteList: Angebote[];
   /** Zeilen-Klick → overlay.push auf das Angebote-Detail (nie der Edit-Dialog). */
@@ -46,16 +54,20 @@ export function ProjekteDetails({
   record,
   kundenList,
   onOpenKunden,
-  onAddKunden,
   beraterInnenList,
   onOpenBeraterInnen,
-  onAddBeraterInnen,
   zeiterfassungList,
   onOpenZeiterfassung,
   onAddZeiterfassung,
   rechnungenList,
   onOpenRechnungen,
   onAddRechnungen,
+  kundenLaufendeProjekteList,
+  onOpenKundenLaufendeProjekte,
+  onAddKundenLaufendeProjekte,
+  beraterInnenProjekteList,
+  onOpenBeraterInnenProjekte,
+  onAddBeraterInnenProjekte,
   angeboteList,
   onOpenAngebote,
   onAddAngebote,
@@ -84,13 +96,13 @@ export function ProjekteDetails({
           label={fieldLabel('projekte', 'kunde')}
           name={kundeTarget?.fields.kundenname ?? '—'}
           meta={[kundeTarget?.fields.email, kundeTarget?.fields.telefon].filter(Boolean).join(' · ') || undefined}
-          onClick={kundeTarget ? () => onOpenKunden(kundeTarget!) : undefined}
+          onClick={kundeTarget && onOpenKunden ? () => onOpenKunden!(kundeTarget!) : undefined}
         />
         <RecordRelation
           label={fieldLabel('projekte', 'projektleitung')}
           name={projektleitungTarget?.fields.nachname ?? '—'}
           meta={[projektleitungTarget?.fields.email_beruflich, projektleitungTarget?.fields.email_privat].filter(Boolean).join(' · ') || undefined}
-          onClick={projektleitungTarget ? () => onOpenBeraterInnen(projektleitungTarget!) : undefined}
+          onClick={projektleitungTarget && onOpenBeraterInnen ? () => onOpenBeraterInnen!(projektleitungTarget!) : undefined}
         />
       </RecordSection>
 
@@ -113,20 +125,20 @@ export function ProjekteDetails({
       />
 
       <SatelliteSection
-        title={appLabel('kunden')}
-        items={kundenList.filter(r => Array.isArray(r.fields.laufende_projekte) && r.fields.laufende_projekte.some((u: unknown) => extractRecordId(u) === record.record_id))}
+        title={`${appLabel('kunden')} · ${fieldLabel('kunden', 'laufende_projekte')}`}
+        items={kundenLaufendeProjekteList.filter(r => Array.isArray(r.fields.laufende_projekte) && r.fields.laufende_projekte.some((u: unknown) => extractRecordId(u) === record.record_id))}
         map={r => ({ name: r.fields.kundenname ?? appLabel('kunden'), meta: r.fields.anlagedatum })}
-        onOpen={onOpenKunden}
-        onAdd={onAddKunden}
+        onOpen={onOpenKundenLaufendeProjekte}
+        onAdd={onAddKundenLaufendeProjekte}
         getKey={r => r.record_id}
       />
 
       <SatelliteSection
-        title={appLabel('berater/innen')}
-        items={beraterInnenList.filter(r => Array.isArray(r.fields.projekte) && r.fields.projekte.some((u: unknown) => extractRecordId(u) === record.record_id))}
+        title={`${appLabel('berater/innen')} · ${fieldLabel('berater/innen', 'projekte')}`}
+        items={beraterInnenProjekteList.filter(r => Array.isArray(r.fields.projekte) && r.fields.projekte.some((u: unknown) => extractRecordId(u) === record.record_id))}
         map={r => ({ name: r.fields.nachname ?? appLabel('berater/innen'), meta: r.fields.einstiegsdatum })}
-        onOpen={onOpenBeraterInnen}
-        onAdd={onAddBeraterInnen}
+        onOpen={onOpenBeraterInnenProjekte}
+        onAdd={onAddBeraterInnenProjekte}
         getKey={r => r.record_id}
       />
 

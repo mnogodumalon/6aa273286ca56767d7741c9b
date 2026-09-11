@@ -470,16 +470,20 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
                   record={top.record}
                   kundenList={data.kunden}
                   onOpenKunden={(r) => detailKunden(r, true)}
-                  onAddKunden={() => setKundenDialog({ defaults: { laufende_projekte: [createRecordUrl(APP_IDS.PROJEKTE, top.record.record_id)] } })}
                   beraterInnenList={data.beraterInnen}
                   onOpenBeraterInnen={(r) => detailBeraterInnen(r, true)}
-                  onAddBeraterInnen={() => setBeraterInnenDialog({ defaults: { projekte: [createRecordUrl(APP_IDS.PROJEKTE, top.record.record_id)] } })}
                   zeiterfassungList={data.zeiterfassung}
                   onOpenZeiterfassung={(r) => detailZeiterfassung(r, true)}
                   onAddZeiterfassung={() => setZeiterfassungDialog({ defaults: { projekt: createRecordUrl(APP_IDS.PROJEKTE, top.record.record_id) } })}
                   rechnungenList={data.rechnungen}
                   onOpenRechnungen={(r) => detailRechnungen(r, true)}
                   onAddRechnungen={() => setRechnungenDialog({ defaults: { projekt: createRecordUrl(APP_IDS.PROJEKTE, top.record.record_id) } })}
+                  kundenLaufendeProjekteList={data.kunden}
+                  onOpenKundenLaufendeProjekte={(r) => detailKunden(r, true)}
+                  onAddKundenLaufendeProjekte={() => setKundenDialog({ defaults: { laufende_projekte: [createRecordUrl(APP_IDS.PROJEKTE, top.record.record_id)] } })}
+                  beraterInnenProjekteList={data.beraterInnen}
+                  onOpenBeraterInnenProjekte={(r) => detailBeraterInnen(r, true)}
+                  onAddBeraterInnenProjekte={() => setBeraterInnenDialog({ defaults: { projekte: [createRecordUrl(APP_IDS.PROJEKTE, top.record.record_id)] } })}
                   angeboteList={data.angebote}
                   onOpenAngebote={(r) => detailAngebote(r, true)}
                   onAddAngebote={() => setAngeboteDialog({ defaults: { projekt: createRecordUrl(APP_IDS.PROJEKTE, top.record.record_id) } })}
@@ -497,8 +501,9 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
                   zeiterfassungList={data.zeiterfassung}
                   onOpenZeiterfassung={(r) => detailZeiterfassung(r, true)}
                   onAddZeiterfassung={() => setZeiterfassungDialog({ defaults: { leistung: createRecordUrl(APP_IDS.LEISTUNGSKATALOG, top.record.record_id) } })}
-                  onOpenBeraterInnen={(r) => detailBeraterInnen(r, true)}
-                  onAddBeraterInnen={() => setBeraterInnenDialog({ defaults: { leistungen: [createRecordUrl(APP_IDS.LEISTUNGSKATALOG, top.record.record_id)] } })}
+                  beraterInnenLeistungenList={data.beraterInnen}
+                  onOpenBeraterInnenLeistungen={(r) => detailBeraterInnen(r, true)}
+                  onAddBeraterInnenLeistungen={() => setBeraterInnenDialog({ defaults: { leistungen: [createRecordUrl(APP_IDS.LEISTUNGSKATALOG, top.record.record_id)] } })}
                 />
               </>
             );
@@ -513,8 +518,9 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
                   rechnungenList={data.rechnungen}
                   onOpenRechnungen={(r) => detailRechnungen(r, true)}
                   onAddRechnungen={() => setRechnungenDialog({ defaults: { kunde: createRecordUrl(APP_IDS.KUNDEN, top.record.record_id) } })}
-                  onOpenProjekte={(r) => detailProjekte(r, true)}
-                  onAddProjekte={() => setProjekteDialog({ defaults: { kunde: createRecordUrl(APP_IDS.KUNDEN, top.record.record_id) } })}
+                  projekteKundeList={data.projekte}
+                  onOpenProjekteKunde={(r) => detailProjekte(r, true)}
+                  onAddProjekteKunde={() => setProjekteDialog({ defaults: { kunde: createRecordUrl(APP_IDS.KUNDEN, top.record.record_id) } })}
                   angeboteList={data.angebote}
                   onOpenAngebote={(r) => detailAngebote(r, true)}
                   onAddAngebote={() => setAngeboteDialog({ defaults: { kunde: createRecordUrl(APP_IDS.KUNDEN, top.record.record_id) } })}
@@ -536,10 +542,12 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
                   rechnungenList={data.rechnungen}
                   onOpenRechnungen={(r) => detailRechnungen(r, true)}
                   onAddRechnungen={() => setRechnungenDialog({ defaults: { berater: [createRecordUrl(APP_IDS.BERATERINNEN, top.record.record_id)] } })}
-                  onOpenProjekte={(r) => detailProjekte(r, true)}
-                  onAddProjekte={() => setProjekteDialog({ defaults: { projektleitung: createRecordUrl(APP_IDS.BERATERINNEN, top.record.record_id) } })}
-                  onOpenLeistungskatalog={(r) => detailLeistungskatalog(r, true)}
-                  onAddLeistungskatalog={() => setLeistungskatalogDialog({ defaults: { berater: [createRecordUrl(APP_IDS.BERATERINNEN, top.record.record_id)] } })}
+                  projekteProjektleitungList={data.projekte}
+                  onOpenProjekteProjektleitung={(r) => detailProjekte(r, true)}
+                  onAddProjekteProjektleitung={() => setProjekteDialog({ defaults: { projektleitung: createRecordUrl(APP_IDS.BERATERINNEN, top.record.record_id) } })}
+                  leistungskatalogBeraterList={data.leistungskatalog}
+                  onOpenLeistungskatalogBerater={(r) => detailLeistungskatalog(r, true)}
+                  onAddLeistungskatalogBerater={() => setLeistungskatalogDialog({ defaults: { berater: [createRecordUrl(APP_IDS.BERATERINNEN, top.record.record_id)] } })}
                 />
               </>
             );

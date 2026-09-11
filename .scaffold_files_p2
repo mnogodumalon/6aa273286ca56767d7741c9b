@@ -627,7 +627,7 @@ export class LivingAppsService {
 
   // --- BERATER/INNEN ---
   static async getBeraterInnen(): Promise<BeraterInnen[]> {
-    const data = await callApi('GET', `/apps/${APP_IDS.BERATER/INNEN}/records`);
+    const data = await callApi('GET', `/apps/${APP_IDS.BERATERINNEN}/records`);
     const records = Object.entries(data).map(([id, rec]: [string, any]) => ({
       record_id: id, ...rec,
       createdat: rec.created_at ?? '', updatedat: rec.updated_at ?? null,
@@ -635,7 +635,7 @@ export class LivingAppsService {
     return hydrateRecords(records, 'berater/innen');
   }
   static async queryBeraterInnen(q: RecordQuery = {}): Promise<BeraterInnen[]> {
-    const data = await callApi('GET', `/apps/${APP_IDS.BERATER/INNEN}/records${recordQueryString(q)}`, undefined, { signal: q.signal });
+    const data = await callApi('GET', `/apps/${APP_IDS.BERATERINNEN}/records${recordQueryString(q)}`, undefined, { signal: q.signal });
     const records = Object.entries(data).map(([id, rec]: [string, any]) => ({
       record_id: id, ...rec,
       createdat: rec.created_at ?? '', updatedat: rec.updated_at ?? null,
@@ -643,24 +643,24 @@ export class LivingAppsService {
     return hydrateRecords(records, 'berater/innen');
   }
   static async countBeraterInnen(filter?: string, signal?: AbortSignal): Promise<number> {
-    const data = await callApi('GET', `/apps/${APP_IDS.BERATER/INNEN}/aggregate_records${recordQueryString({ filter })}${filter ? '&' : '?'}value=count()`, undefined, { signal, silent: true });
+    const data = await callApi('GET', `/apps/${APP_IDS.BERATERINNEN}/aggregate_records${recordQueryString({ filter })}${filter ? '&' : '?'}value=count()`, undefined, { signal, silent: true });
     return parseAggregateCount(data);
   }
   static async getBeraterInnenEntry(id: string): Promise<BeraterInnen | undefined> {
-    const data = await callApi('GET', `/apps/${APP_IDS.BERATER/INNEN}/records/${id}`);
+    const data = await callApi('GET', `/apps/${APP_IDS.BERATERINNEN}/records/${id}`);
     const record = { record_id: data.id, ...data, createdat: data.created_at ?? '', updatedat: data.updated_at ?? null } as BeraterInnen;
     return hydrateRecords([record], 'berater/innen')[0];
   }
   static async createBeraterInnenEntry(fields: CreateBeraterInnen): Promise<MutationResult> {
-    const data = await callApi('POST', `/apps/${APP_IDS.BERATER/INNEN}/records`, { fields: cleanFieldsForApi(fields as any, 'berater/innen') });
+    const data = await callApi('POST', `/apps/${APP_IDS.BERATERINNEN}/records`, { fields: cleanFieldsForApi(fields as any, 'berater/innen') });
     return { ...data, record_id: data.id };
   }
   static async updateBeraterInnenEntry(id: string, fields: Partial<CreateBeraterInnen>): Promise<MutationResult> {
-    const data = await callApi('PATCH', `/apps/${APP_IDS.BERATER/INNEN}/records/${id}`, { fields: cleanFieldsForApi(fields as any, 'berater/innen') });
+    const data = await callApi('PATCH', `/apps/${APP_IDS.BERATERINNEN}/records/${id}`, { fields: cleanFieldsForApi(fields as any, 'berater/innen') });
     return { ...data, record_id: data.id };
   }
   static async deleteBeraterInnenEntry(id: string) {
-    return callApi('DELETE', `/apps/${APP_IDS.BERATER/INNEN}/records/${id}`);
+    return callApi('DELETE', `/apps/${APP_IDS.BERATERINNEN}/records/${id}`);
   }
 
   // --- ANGEBOTE ---
@@ -718,6 +718,7 @@ import DashboardReady from '@/pages/DashboardReady';
 import PublicPagesAdmin from '@/pages/PublicPagesAdmin';
 import IntentsAdmin from '@/pages/IntentsAdmin';
 // <custom:imports>
+import { lazy } from 'react';
 const IntentStundenErfassenPage = lazy(() => import('@/pages/intents/StundenErfassenPage'));
 const IntentAngebotErstellenPage = lazy(() => import('@/pages/intents/AngebotErstellenPage'));
 const IntentRechnungErstellenPage = lazy(() => import('@/pages/intents/RechnungErstellenPage'));
@@ -812,6 +813,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { useState, useEffect, useRef } from 'react';
 import { IntentsNav } from '@/components/IntentsNav';
+import { ActionsSidebar } from '@/components/ActionsSidebar';
 import { Button } from '@/components/ui/button';
 import { VersionCheck } from '@/components/VersionCheck';
 // Sprachwechsel kommt aus der Plattform-Topnav: sie schreibt <html lang>,
@@ -952,10 +954,15 @@ export function Layout() {
               actions-agent (row = run, code and description buttons, the last
               row 'Alle Aktionen' opens the full list); la-action-files-widget
               lists files those actions produced and hides itself — section
-              included — while there are none. New actions are created in the
-              assistant's chat. */}
+              included — while there are none. Below the widget one more row,
+              'Werkzeuge' (ActionsSidebar), opens the assistant's drawer
+              (<la-klar-assistant actions-open>) — the only place with run,
+              files, triggers, last run, versions and chat per action; the
+              widget alone had lost that entry point in 0.0.386 (0.0.407).
+              New actions are created in the assistant's chat. */}
           <la-nav-section type="secondary" label={t('actions_section')}>
             <la-actions-widget group-id={APPGROUP_ID} />
+            <ActionsSidebar />
           </la-nav-section>
           <la-nav-section type="secondary" label={t('files_section')}>
             <la-action-files-widget group-id={APPGROUP_ID} />

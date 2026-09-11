@@ -12,16 +12,12 @@ export interface BeraterInnenDetailsProps {
   record: BeraterInnen;
   /** N:1-Ziel „Leistungskatalog": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   leistungskatalogList: Leistungskatalog[];
-  /** Zeilen-Klick → overlay.push auf das Leistungskatalog-Detail (nie der Edit-Dialog). */
-  onOpenLeistungskatalog: (record: Leistungskatalog) => void;
-  /** Kontextuelles „+": öffnet den Leistungskatalog-Dialog mit diesem Record vorgesetzt. */
-  onAddLeistungskatalog: () => void;
+  /** Reserviert — Leistungskatalog ist hier nur über ein Mehrfach-Feld verknüpft (Text-Join, keine Einzel-Relation); Übergabe erlaubt, aber ohne Wirkung. */
+  onOpenLeistungskatalog?: (record: Leistungskatalog) => void;
   /** N:1-Ziel „Projekte": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   projekteList: Projekte[];
-  /** Zeilen-Klick → overlay.push auf das Projekte-Detail (nie der Edit-Dialog). */
-  onOpenProjekte: (record: Projekte) => void;
-  /** Kontextuelles „+": öffnet den Projekte-Dialog mit diesem Record vorgesetzt. */
-  onAddProjekte: () => void;
+  /** Reserviert — Projekte ist hier nur über ein Mehrfach-Feld verknüpft (Text-Join, keine Einzel-Relation); Übergabe erlaubt, aber ohne Wirkung. */
+  onOpenProjekte?: (record: Projekte) => void;
   /** 1:N „Zeiterfassung" (berater): VOLLE Liste — der Block filtert auf diesen Record. */
   zeiterfassungList: Zeiterfassung[];
   /** Zeilen-Klick → overlay.push auf das Zeiterfassung-Detail (nie der Edit-Dialog). */
@@ -34,6 +30,18 @@ export interface BeraterInnenDetailsProps {
   onOpenRechnungen: (record: Rechnungen) => void;
   /** Kontextuelles „+": öffnet den Rechnungen-Dialog mit diesem Record vorgesetzt. */
   onAddRechnungen: () => void;
+  /** 1:N „Projekte" (projektleitung): VOLLE Liste — der Block filtert auf diesen Record. */
+  projekteProjektleitungList: Projekte[];
+  /** Zeilen-Klick → overlay.push auf das Projekte-Detail (nie der Edit-Dialog). */
+  onOpenProjekteProjektleitung: (record: Projekte) => void;
+  /** Kontextuelles „+": öffnet den Projekte-Dialog mit diesem Record vorgesetzt. */
+  onAddProjekteProjektleitung: () => void;
+  /** 1:N „Leistungskatalog" (berater): VOLLE Liste — der Block filtert auf diesen Record. */
+  leistungskatalogBeraterList: Leistungskatalog[];
+  /** Zeilen-Klick → overlay.push auf das Leistungskatalog-Detail (nie der Edit-Dialog). */
+  onOpenLeistungskatalogBerater: (record: Leistungskatalog) => void;
+  /** Kontextuelles „+": öffnet den Leistungskatalog-Dialog mit diesem Record vorgesetzt. */
+  onAddLeistungskatalogBerater: () => void;
 }
 
 export function BeraterInnenDetails({
@@ -46,10 +54,12 @@ export function BeraterInnenDetails({
   rechnungenList,
   onOpenRechnungen,
   onAddRechnungen,
-  onOpenProjekte,
-  onAddProjekte,
-  onOpenLeistungskatalog,
-  onAddLeistungskatalog,
+  projekteProjektleitungList,
+  onOpenProjekteProjektleitung,
+  onAddProjekteProjektleitung,
+  leistungskatalogBeraterList,
+  onOpenLeistungskatalogBerater,
+  onAddLeistungskatalogBerater,
 }: BeraterInnenDetailsProps) {
   return (
     <>
@@ -98,20 +108,20 @@ export function BeraterInnenDetails({
       />
 
       <SatelliteSection
-        title={appLabel('projekte')}
-        items={projekteList.filter(r => extractRecordId(r.fields.projektleitung) === record.record_id)}
+        title={`${appLabel('projekte')} · ${fieldLabel('projekte', 'projektleitung')}`}
+        items={projekteProjektleitungList.filter(r => extractRecordId(r.fields.projektleitung) === record.record_id)}
         map={r => ({ name: r.fields.projektkennung ?? appLabel('projekte'), meta: r.fields.projektende })}
-        onOpen={onOpenProjekte}
-        onAdd={onAddProjekte}
+        onOpen={onOpenProjekteProjektleitung}
+        onAdd={onAddProjekteProjektleitung}
         getKey={r => r.record_id}
       />
 
       <SatelliteSection
-        title={appLabel('leistungskatalog')}
-        items={leistungskatalogList.filter(r => Array.isArray(r.fields.berater) && r.fields.berater.some((u: unknown) => extractRecordId(u) === record.record_id))}
+        title={`${appLabel('leistungskatalog')} · ${fieldLabel('leistungskatalog', 'berater')}`}
+        items={leistungskatalogBeraterList.filter(r => Array.isArray(r.fields.berater) && r.fields.berater.some((u: unknown) => extractRecordId(u) === record.record_id))}
         map={r => ({ name: r.fields.leistungsbezeichnung ?? appLabel('leistungskatalog'), meta: undefined })}
-        onOpen={onOpenLeistungskatalog}
-        onAdd={onAddLeistungskatalog}
+        onOpen={onOpenLeistungskatalogBerater}
+        onAdd={onAddLeistungskatalogBerater}
         getKey={r => r.record_id}
       />
 

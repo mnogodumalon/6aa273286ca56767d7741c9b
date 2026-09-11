@@ -12,16 +12,20 @@ export interface KundenDetailsProps {
   record: Kunden;
   /** N:1-Ziel „Projekte": volle Liste (Hook-Array) — der Block löst Name + Schlüsselfelder selbst auf. */
   projekteList: Projekte[];
-  /** Zeilen-Klick → overlay.push auf das Projekte-Detail (nie der Edit-Dialog). */
-  onOpenProjekte: (record: Projekte) => void;
-  /** Kontextuelles „+": öffnet den Projekte-Dialog mit diesem Record vorgesetzt. */
-  onAddProjekte: () => void;
+  /** Reserviert — Projekte ist hier nur über ein Mehrfach-Feld verknüpft (Text-Join, keine Einzel-Relation); Übergabe erlaubt, aber ohne Wirkung. */
+  onOpenProjekte?: (record: Projekte) => void;
   /** 1:N „Rechnungen" (kunde): VOLLE Liste — der Block filtert auf diesen Record. */
   rechnungenList: Rechnungen[];
   /** Zeilen-Klick → overlay.push auf das Rechnungen-Detail (nie der Edit-Dialog). */
   onOpenRechnungen: (record: Rechnungen) => void;
   /** Kontextuelles „+": öffnet den Rechnungen-Dialog mit diesem Record vorgesetzt. */
   onAddRechnungen: () => void;
+  /** 1:N „Projekte" (kunde): VOLLE Liste — der Block filtert auf diesen Record. */
+  projekteKundeList: Projekte[];
+  /** Zeilen-Klick → overlay.push auf das Projekte-Detail (nie der Edit-Dialog). */
+  onOpenProjekteKunde: (record: Projekte) => void;
+  /** Kontextuelles „+": öffnet den Projekte-Dialog mit diesem Record vorgesetzt. */
+  onAddProjekteKunde: () => void;
   /** 1:N „Angebote" (kunde): VOLLE Liste — der Block filtert auf diesen Record. */
   angeboteList: Angebote[];
   /** Zeilen-Klick → overlay.push auf das Angebote-Detail (nie der Edit-Dialog). */
@@ -36,8 +40,9 @@ export function KundenDetails({
   rechnungenList,
   onOpenRechnungen,
   onAddRechnungen,
-  onOpenProjekte,
-  onAddProjekte,
+  projekteKundeList,
+  onOpenProjekteKunde,
+  onAddProjekteKunde,
   angeboteList,
   onOpenAngebote,
   onAddAngebote,
@@ -80,11 +85,11 @@ export function KundenDetails({
       />
 
       <SatelliteSection
-        title={appLabel('projekte')}
-        items={projekteList.filter(r => extractRecordId(r.fields.kunde) === record.record_id)}
+        title={`${appLabel('projekte')} · ${fieldLabel('projekte', 'kunde')}`}
+        items={projekteKundeList.filter(r => extractRecordId(r.fields.kunde) === record.record_id)}
         map={r => ({ name: r.fields.projektkennung ?? appLabel('projekte'), meta: r.fields.projektende })}
-        onOpen={onOpenProjekte}
-        onAdd={onAddProjekte}
+        onOpen={onOpenProjekteKunde}
+        onAdd={onAddProjekteKunde}
         getKey={r => r.record_id}
       />
 

@@ -563,6 +563,7 @@ export const UI_CATALOG: Record<CoreLocale, Record<string, string>> = {
     "intents_pending": "Werden erstellt …",
     "placeholder_page_desc": "Hier die eigene {entity}-Ansicht bauen.",
     "placeholder_page_box": "Platzhalter für eigene UI — hier die {entity}-Ansicht bauen",
+    "tools_label": "Werkzeuge",
     "tools_subtitle_available": "verfügbar",
     "tools_empty_title": "Noch keine Werkzeuge angelegt",
     "tools_empty_desc": "Beschreibe im Chat, was du automatisieren willst — daraus entsteht dein erstes Werkzeug.",
@@ -1120,6 +1121,7 @@ export const UI_CATALOG: Record<CoreLocale, Record<string, string>> = {
     "intents_pending": "Being created …",
     "placeholder_page_desc": "Build your custom {entity} view here.",
     "placeholder_page_box": "Custom UI placeholder — build your {entity} view here",
+    "tools_label": "Tools",
     "tools_subtitle_available": "available",
     "tools_empty_title": "No tools yet",
     "tools_empty_desc": "Describe in the chat what you want to automate — that becomes your first tool.",
@@ -1573,7 +1575,7 @@ export const LABELS: Record<CoreLocale, LabelBundle> = {
           "projektende": "Planned Project End",
           "notizen": "Notes",
           "kunde": "Client",
-          "projektleitung": "Project Manager"
+          "projektleitung": "Project Lead"
         },
         "lookups": {
           "projektart": {
@@ -1703,13 +1705,13 @@ export const LABELS: Record<CoreLocale, LabelBundle> = {
           "stunden_letzter_monat": "Booked Hours – Last Month",
           "stunden_letztes_quartal": "Booked Hours – Last Quarter",
           "stunden_letztes_jahr": "Booked Hours – Last Year",
-          "leistungen": "Deliverable Services",
+          "leistungen": "Serviceable Offerings",
           "projekte": "Currently Assigned Projects"
         },
         "lookups": {
           "status": {
             "aktiv": "Active",
-            "urlaub": "Vacation",
+            "urlaub": "On Leave",
             "elternzeit": "Parental Leave",
             "sonstiges": "Other"
           }
