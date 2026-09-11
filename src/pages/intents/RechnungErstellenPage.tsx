@@ -4,8 +4,8 @@
  * Reads: projekte, kunden, zeiterfassung, beraterInnen. Writes: rechnungen (createRechnungenEntry).
  * Composes: IntentWizardShell, EntitySelectStep, StatusBadge.
  */
-import { useState, useEffect } from 'react';
-import { format, addDays } from 'date-fns';
+import { useState, useEffect, useRef } from 'react';
+import { format, addDays, getMonth } from 'date-fns';
 import { IconFileInvoice, IconClock, IconUser, IconCalendar, IconCheck } from '@tabler/icons-react';
 import { IntentWizardShell } from '@/components/blocks/IntentWizardShell';
 import { EntitySelectStep } from '@/components/blocks/EntitySelectStep';
@@ -24,6 +24,7 @@ import { tx } from '@/i18n';
 
 const RECHNUNGSSTATUS_OPTIONS = LOOKUP_OPTIONS['rechnungen']?.['rechnungsstatus'] ?? [];
 const ABRECHNUNGSMONAT_OPTIONS = LOOKUP_OPTIONS['rechnungen']?.['abrechnungsmonat'] ?? [];
+const MONTH_KEYS = ['januar', 'februar', 'maerz', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'dezember'];
 
 export default function RechnungErstellenPage() {
   const { projekte, kunden, zeiterfassung, rechnungen, loading, error, fetchAll } = useDashboardData();
@@ -45,8 +46,9 @@ export default function RechnungErstellenPage() {
   const [selectedProjekt, setSelectedProjekt] = useState<Projekte | null>(null);
   const [selectedKundeId, setSelectedKundeId] = useState<string | null>(null);
 
-  // Step 2 state
-  const [abrechnungsmonat, setAbrechnungsmonat] = useState<string>(initState?.monatKey ?? ABRECHNUNGSMONAT_OPTIONS[0]?.key ?? 'januar');
+  // Step 2 state — default to current month so the fallback is already "aktueller Monat"
+  const defaultMonatKey = MONTH_KEYS[getMonth(new Date())] ?? ABRECHNUNGSMONAT_OPTIONS[0]?.key ?? 'januar';
+  const [abrechnungsmonat, setAbrechnungsmonat] = useState<string>(initState?.monatKey ?? defaultMonatKey);
   const [abrechnungsjahr, setAbrechnungsjahr] = useState<string>(initState?.jahr ?? format(new Date(), 'yyyy'));
 
   // Step 3 state
@@ -63,16 +65,22 @@ export default function RechnungErstellenPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdRechnungId, setCreatedRechnungId] = useState<string | null>(null);
 
-  // Pre-select project from URL param or router state; compute billing period from oldest unbilled entry
+  // Guard: pre-fill runs ONCE after all data is loaded — prevents overwrites from repeated effect runs
+  const didInitRef = useRef(false);
+
+  // Pre-select project + compute billing period from oldest unbilled entry (runs once, after loading)
   useEffect(() => {
-    if (!initProjektId || !projekte.length) return;
+    if (didInitRef.current) return;
+    if (!initProjektId || !projekte.length || loading) return;
+
     const found = projekte.find(p => p.record_id === initProjektId);
     if (!found) return;
+
     setSelectedProjekt(found);
     setSelectedKundeId(extractRecordId(found.fields.kunde));
 
-    // When coming from URL (no explicit monatKey in state), compute oldest unbilled entry
-    if (filterByPeriod && !initState?.monatKey && zeiterfassung.length > 0) {
+    if (filterByPeriod) {
+      // Find oldest unbilled verrechenbar entry for this project
       const projektZeit = zeiterfassung.filter(
         ze => extractRecordId(ze.fields.projekt) === initProjektId && ze.fields.verrechenbar === true
       );
@@ -83,16 +91,21 @@ export default function RechnungErstellenPage() {
           lookupKey(r.fields.rechnungsstatus) !== 'storniert'
         )
       );
+      // Sort by datum ascending to find the earliest unbilled entry
       const oldest = [...unabgerechnet].sort((a, b) =>
         (a.fields.datum ?? '') < (b.fields.datum ?? '') ? -1 : 1
       )[0];
+
       if (oldest) {
         const monatK = lookupKey(oldest.fields.monat);
         if (monatK) setAbrechnungsmonat(monatK);
         if (oldest.fields.jahr) setAbrechnungsjahr(oldest.fields.jahr);
       }
+      // No unbilled entries → keep defaultMonatKey (current month) already set in state
     }
-  }, [projekte, zeiterfassung, rechnungen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    didInitRef.current = true;
+  }, [projekte, zeiterfassung, rechnungen, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-generate Rechnungsnummer when reaching step 3 and field is still empty
   useEffect(() => {
