@@ -14,7 +14,7 @@ index.css is pre-generated with the shared design system. Do NOT edit it.
 src/config/ai-features.ts is editable — set AI_PHOTO_SCAN['Entity'] = true to enable photo scan in dialogs.
 NEVER use Bash cat/echo/heredoc for file operations — always use Read/Write/Edit tools.
 
-Generated 140 scaffold files:
+Generated 141 scaffold files:
   - src/App.tsx
   - src/i18n/index.ts
   - src/i18n/common.ts
@@ -32,6 +32,7 @@ Generated 140 scaffold files:
   - src/components/WorkList.tsx
   - src/components/HeroBanner.tsx
   - src/components/SatelliteSection.tsx
+  - src/components/PickExistingDialog.tsx
   - scripts/check-dashboard.mjs
   - scripts/check-lookup-keys.mjs
   - scripts/check-hub.mjs
@@ -316,17 +317,19 @@ contracts; Read one only if the contract below is insufficient.
  * Built in (do NOT re-implement): optimistic update + Rückgängig counter-write
  * on edit, fetchAll-on-error, edit-from-overlay, and per-entity overlay bodies
  * (RecordHeader + <{Entity}Details> with every relation reachable and the
- * contextual "+" prefilled). Drag writes (onEventDrop/onCardMove) stay YOURS:
+ * contextual "+" prefilled; list-field back-references additionally get a
+ * "choose existing" picker that links an EXISTING record — built in, do not
+ * re-roll). Drag writes (onEventDrop/onCardMove) stay YOURS:
  * optimistic setter first, PATCH in background, undoToast with counter-write.
  *
  * Overlay content per entity (the host renders these — you never compose
  * Details blocks yourself):
  *   zeiterfassung: datum, stunden, monat, jahr, taetigkeitsbeschreibung, verrechenbar, notizen, berater, …  ·  → berater/innen · → projekte · → leistungskatalog
  *   rechnungen: rechnungsnummer, rechnungsdatum, faelligkeitsdatum, rechnungsstatus, abrechnungsmonat, abrechnungsjahr, nettobetrag, mehrwertsteuer, …  ·  → kunden · → projekte · → berater/innen
- *   projekte: budget, projektkennung, projektnummer, projektart, projektstart_jahr, projektstart_monat, status, ansprechpartner_kunde, …  ·  → kunden · → berater/innen · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual +) · ← kunden (list + contextual +) · ← berater/innen (list + contextual +) · ← angebote (list + contextual +)
- *   leistungskatalog: berater, leistungsbezeichnung, leistungstyp, beschreibung, kostenvoranschlag, stundensatz_leistung, einheit, verfuegbarkeit  ·  → berater/innen · ← zeiterfassung (list + contextual +) · ← berater/innen (list + contextual +)
+ *   projekte: budget, projektkennung, projektnummer, projektart, projektstart_jahr, projektstart_monat, status, ansprechpartner_kunde, …  ·  → kunden · → berater/innen · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual +) · ← kunden (list + contextual + + choose existing) · ← berater/innen (list + contextual + + choose existing) · ← angebote (list + contextual +)
+ *   leistungskatalog: berater, leistungsbezeichnung, leistungstyp, beschreibung, kostenvoranschlag, stundensatz_leistung, einheit, verfuegbarkeit  ·  → berater/innen · ← zeiterfassung (list + contextual +) · ← berater/innen (list + contextual + + choose existing)
  *   kunden: kundenname, kundentyp, email, telefon, strasse, hausnummer, plz, ort, …  ·  → projekte · ← rechnungen (list + contextual +) · ← projekte (list + contextual +) · ← angebote (list + contextual +)
- *   berater/innen: nachname, vorname, titel, strasse, hausnummer, plz, ort, email_beruflich, …  ·  → leistungskatalog · → projekte · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual +) · ← projekte (list + contextual +) · ← leistungskatalog (list + contextual +)
+ *   berater/innen: nachname, vorname, titel, strasse, hausnummer, plz, ort, email_beruflich, …  ·  → leistungskatalog · → projekte · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual + + choose existing) · ← projekte (list + contextual +) · ← leistungskatalog (list + contextual + + choose existing)
  *   angebote: kunde, angebotsnummer, angebotsjahr, angebotstyp, angebotsdatum, gueltig_bis, zeitrahmen_anfang, zeitrahmen_ende, …  ·  → kunden · → projekte
  */
 ```
@@ -474,7 +477,11 @@ contracts; Read one only if the contract below is insufficient.
  *   2. clicking a row calls `onOpen` (→ open the record's DETAIL overlay via
  *      overlay.push), NEVER the edit form — editing happens from inside that
  *      detail;
- *   3. consistent header-with-count + relation-list + dashed-add layout.
+ *   3. consistent header-with-count + relation-list + dashed-add layout;
+ *   4. optional `onPick` — a second dashed action "choose existing" for
+ *      satellites whose members already exist before they join (a consultant,
+ *      a customer). EntityCrud wires it for every list-field (multipleapplookup)
+ *      back-reference; hand-rendered sections may pass it too.
  *
  * Render one per entity in HUB_TOPOLOGY[hubKey]; the gate checks completeness.
  *

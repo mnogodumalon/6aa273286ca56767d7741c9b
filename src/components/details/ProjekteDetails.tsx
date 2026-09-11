@@ -36,12 +36,16 @@ export interface ProjekteDetailsProps {
   onOpenKundenLaufendeProjekte: (record: Kunden) => void;
   /** Kontextuelles „+": öffnet den Kunden-Dialog mit diesem Record vorgesetzt. */
   onAddKundenLaufendeProjekte: () => void;
+  /** „Vorhandene wählen": Listenfeld-Rückbezug — hängt diesen Record an einen bestehenden Kunden-Datensatz. */
+  onPickKundenLaufendeProjekte?: () => void;
   /** 1:N „Berater/innen" (projekte): VOLLE Liste — der Block filtert auf diesen Record. */
   beraterInnenProjekteList: BeraterInnen[];
   /** Zeilen-Klick → overlay.push auf das BeraterInnen-Detail (nie der Edit-Dialog). */
   onOpenBeraterInnenProjekte: (record: BeraterInnen) => void;
   /** Kontextuelles „+": öffnet den BeraterInnen-Dialog mit diesem Record vorgesetzt. */
   onAddBeraterInnenProjekte: () => void;
+  /** „Vorhandene wählen": Listenfeld-Rückbezug — hängt diesen Record an einen bestehenden BeraterInnen-Datensatz. */
+  onPickBeraterInnenProjekte?: () => void;
   /** 1:N „Angebote" (projekt): VOLLE Liste — der Block filtert auf diesen Record. */
   angeboteList: Angebote[];
   /** Zeilen-Klick → overlay.push auf das Angebote-Detail (nie der Edit-Dialog). */
@@ -65,9 +69,11 @@ export function ProjekteDetails({
   kundenLaufendeProjekteList,
   onOpenKundenLaufendeProjekte,
   onAddKundenLaufendeProjekte,
+  onPickKundenLaufendeProjekte,
   beraterInnenProjekteList,
   onOpenBeraterInnenProjekte,
   onAddBeraterInnenProjekte,
+  onPickBeraterInnenProjekte,
   angeboteList,
   onOpenAngebote,
   onAddAngebote,
@@ -130,6 +136,7 @@ export function ProjekteDetails({
         map={r => ({ name: r.fields.kundenname ?? appLabel('kunden'), meta: r.fields.anlagedatum })}
         onOpen={onOpenKundenLaufendeProjekte}
         onAdd={onAddKundenLaufendeProjekte}
+        onPick={onPickKundenLaufendeProjekte}
         getKey={r => r.record_id}
       />
 
@@ -139,6 +146,7 @@ export function ProjekteDetails({
         map={r => ({ name: r.fields.nachname ?? appLabel('berater/innen'), meta: r.fields.einstiegsdatum })}
         onOpen={onOpenBeraterInnenProjekte}
         onAdd={onAddBeraterInnenProjekte}
+        onPick={onPickBeraterInnenProjekte}
         getKey={r => r.record_id}
       />
 

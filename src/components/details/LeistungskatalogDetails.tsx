@@ -26,6 +26,8 @@ export interface LeistungskatalogDetailsProps {
   onOpenBeraterInnenLeistungen: (record: BeraterInnen) => void;
   /** Kontextuelles „+": öffnet den BeraterInnen-Dialog mit diesem Record vorgesetzt. */
   onAddBeraterInnenLeistungen: () => void;
+  /** „Vorhandene wählen": Listenfeld-Rückbezug — hängt diesen Record an einen bestehenden BeraterInnen-Datensatz. */
+  onPickBeraterInnenLeistungen?: () => void;
 }
 
 export function LeistungskatalogDetails({
@@ -37,6 +39,7 @@ export function LeistungskatalogDetails({
   beraterInnenLeistungenList,
   onOpenBeraterInnenLeistungen,
   onAddBeraterInnenLeistungen,
+  onPickBeraterInnenLeistungen,
 }: LeistungskatalogDetailsProps) {
   return (
     <>
@@ -66,6 +69,7 @@ export function LeistungskatalogDetails({
         map={r => ({ name: r.fields.nachname ?? appLabel('berater/innen'), meta: r.fields.einstiegsdatum })}
         onOpen={onOpenBeraterInnenLeistungen}
         onAdd={onAddBeraterInnenLeistungen}
+        onPick={onPickBeraterInnenLeistungen}
         getKey={r => r.record_id}
       />
 

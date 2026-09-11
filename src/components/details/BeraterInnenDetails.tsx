@@ -30,6 +30,8 @@ export interface BeraterInnenDetailsProps {
   onOpenRechnungen: (record: Rechnungen) => void;
   /** Kontextuelles „+": öffnet den Rechnungen-Dialog mit diesem Record vorgesetzt. */
   onAddRechnungen: () => void;
+  /** „Vorhandene wählen": Listenfeld-Rückbezug — hängt diesen Record an einen bestehenden Rechnungen-Datensatz. */
+  onPickRechnungen?: () => void;
   /** 1:N „Projekte" (projektleitung): VOLLE Liste — der Block filtert auf diesen Record. */
   projekteProjektleitungList: Projekte[];
   /** Zeilen-Klick → overlay.push auf das Projekte-Detail (nie der Edit-Dialog). */
@@ -42,6 +44,8 @@ export interface BeraterInnenDetailsProps {
   onOpenLeistungskatalogBerater: (record: Leistungskatalog) => void;
   /** Kontextuelles „+": öffnet den Leistungskatalog-Dialog mit diesem Record vorgesetzt. */
   onAddLeistungskatalogBerater: () => void;
+  /** „Vorhandene wählen": Listenfeld-Rückbezug — hängt diesen Record an einen bestehenden Leistungskatalog-Datensatz. */
+  onPickLeistungskatalogBerater?: () => void;
 }
 
 export function BeraterInnenDetails({
@@ -54,12 +58,14 @@ export function BeraterInnenDetails({
   rechnungenList,
   onOpenRechnungen,
   onAddRechnungen,
+  onPickRechnungen,
   projekteProjektleitungList,
   onOpenProjekteProjektleitung,
   onAddProjekteProjektleitung,
   leistungskatalogBeraterList,
   onOpenLeistungskatalogBerater,
   onAddLeistungskatalogBerater,
+  onPickLeistungskatalogBerater,
 }: BeraterInnenDetailsProps) {
   return (
     <>
@@ -104,6 +110,7 @@ export function BeraterInnenDetails({
         map={r => ({ name: r.fields.rechnungsnummer ?? appLabel('rechnungen'), meta: r.fields.rechnungsdatum })}
         onOpen={onOpenRechnungen}
         onAdd={onAddRechnungen}
+        onPick={onPickRechnungen}
         getKey={r => r.record_id}
       />
 
@@ -122,6 +129,7 @@ export function BeraterInnenDetails({
         map={r => ({ name: r.fields.leistungsbezeichnung ?? appLabel('leistungskatalog'), meta: undefined })}
         onOpen={onOpenLeistungskatalogBerater}
         onAdd={onAddLeistungskatalogBerater}
+        onPick={onPickLeistungskatalogBerater}
         getKey={r => r.record_id}
       />
 

@@ -34,23 +34,25 @@
  * Built in (do NOT re-implement): optimistic update + Rückgängig counter-write
  * on edit, fetchAll-on-error, edit-from-overlay, and per-entity overlay bodies
  * (RecordHeader + <{Entity}Details> with every relation reachable and the
- * contextual "+" prefilled). Drag writes (onEventDrop/onCardMove) stay YOURS:
+ * contextual "+" prefilled; list-field back-references additionally get a
+ * "choose existing" picker that links an EXISTING record — built in, do not
+ * re-roll). Drag writes (onEventDrop/onCardMove) stay YOURS:
  * optimistic setter first, PATCH in background, undoToast with counter-write.
  *
  * Overlay content per entity (the host renders these — you never compose
  * Details blocks yourself):
  *   zeiterfassung: datum, stunden, monat, jahr, taetigkeitsbeschreibung, verrechenbar, notizen, berater, …  ·  → berater/innen · → projekte · → leistungskatalog
  *   rechnungen: rechnungsnummer, rechnungsdatum, faelligkeitsdatum, rechnungsstatus, abrechnungsmonat, abrechnungsjahr, nettobetrag, mehrwertsteuer, …  ·  → kunden · → projekte · → berater/innen
- *   projekte: budget, projektkennung, projektnummer, projektart, projektstart_jahr, projektstart_monat, status, ansprechpartner_kunde, …  ·  → kunden · → berater/innen · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual +) · ← kunden (list + contextual +) · ← berater/innen (list + contextual +) · ← angebote (list + contextual +)
- *   leistungskatalog: berater, leistungsbezeichnung, leistungstyp, beschreibung, kostenvoranschlag, stundensatz_leistung, einheit, verfuegbarkeit  ·  → berater/innen · ← zeiterfassung (list + contextual +) · ← berater/innen (list + contextual +)
+ *   projekte: budget, projektkennung, projektnummer, projektart, projektstart_jahr, projektstart_monat, status, ansprechpartner_kunde, …  ·  → kunden · → berater/innen · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual +) · ← kunden (list + contextual + + choose existing) · ← berater/innen (list + contextual + + choose existing) · ← angebote (list + contextual +)
+ *   leistungskatalog: berater, leistungsbezeichnung, leistungstyp, beschreibung, kostenvoranschlag, stundensatz_leistung, einheit, verfuegbarkeit  ·  → berater/innen · ← zeiterfassung (list + contextual +) · ← berater/innen (list + contextual + + choose existing)
  *   kunden: kundenname, kundentyp, email, telefon, strasse, hausnummer, plz, ort, …  ·  → projekte · ← rechnungen (list + contextual +) · ← projekte (list + contextual +) · ← angebote (list + contextual +)
- *   berater/innen: nachname, vorname, titel, strasse, hausnummer, plz, ort, email_beruflich, …  ·  → leistungskatalog · → projekte · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual +) · ← projekte (list + contextual +) · ← leistungskatalog (list + contextual +)
+ *   berater/innen: nachname, vorname, titel, strasse, hausnummer, plz, ort, email_beruflich, …  ·  → leistungskatalog · → projekte · ← zeiterfassung (list + contextual +) · ← rechnungen (list + contextual + + choose existing) · ← projekte (list + contextual +) · ← leistungskatalog (list + contextual + + choose existing)
  *   angebote: kunde, angebotsnummer, angebotsjahr, angebotstyp, angebotsdatum, gueltig_bis, zeitrahmen_anfang, zeitrahmen_ende, …  ·  → kunden · → projekte
  */
 import { useState, useMemo, type ReactNode } from 'react';
 import type { Zeiterfassung, Rechnungen, Projekte, Leistungskatalog, Kunden, BeraterInnen, Angebote } from '@/types/app';
 import { APP_IDS } from '@/types/app';
-import { LivingAppsService, createRecordUrl } from '@/services/livingAppsService';
+import { LivingAppsService, createRecordUrl, extractRecordIds } from '@/services/livingAppsService';
 import { enrichZeiterfassung, enrichRechnungen, enrichProjekte, enrichLeistungskatalog, enrichKunden, enrichBeraterInnen, enrichAngebote } from '@/lib/enrich';
 import type { EnrichedZeiterfassung, EnrichedRechnungen, EnrichedProjekte, EnrichedLeistungskatalog, EnrichedKunden, EnrichedBeraterInnen, EnrichedAngebote } from '@/types/enriched';
 import { useDashboardData } from '@/hooks/useDashboardData';
@@ -72,6 +74,7 @@ import { BeraterInnenDialog, type BeraterInnenDialogDefaults } from '@/component
 import { BeraterInnenDetails } from '@/components/details/BeraterInnenDetails';
 import { AngeboteDialog, type AngeboteDialogDefaults } from '@/components/dialogs/AngeboteDialog';
 import { AngeboteDetails } from '@/components/details/AngeboteDetails';
+import { PickExistingDialog } from '@/components/PickExistingDialog';
 import { AI_PHOTO_SCAN, AI_PHOTO_LOCATION } from '@/config/ai-features';
 import { t, appLabel } from '@/i18n';
 import { undoToast } from '@/lib/polish';
@@ -135,6 +138,16 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
   const [kundenDialog, setKundenDialog] = useState<{ defaults?: KundenDialogDefaults; editing?: Kunden } | null>(null);
   const [beraterInnenDialog, setBeraterInnenDialog] = useState<{ defaults?: BeraterInnenDialogDefaults; editing?: BeraterInnen } | null>(null);
   const [angeboteDialog, setAngeboteDialog] = useState<{ defaults?: AngeboteDialogDefaults; editing?: Angebote } | null>(null);
+  // „Vorhandene wählen" für den Listenfeld-Rückbezug kunden.laufende_projekte → projekte: hält die Hub-record_id.
+  const [pickProjekteKundenLaufendeProjekte, setPickProjekteKundenLaufendeProjekte] = useState<string | null>(null);
+  // „Vorhandene wählen" für den Listenfeld-Rückbezug berater/innen.projekte → projekte: hält die Hub-record_id.
+  const [pickProjekteBeraterInnenProjekte, setPickProjekteBeraterInnenProjekte] = useState<string | null>(null);
+  // „Vorhandene wählen" für den Listenfeld-Rückbezug berater/innen.leistungen → leistungskatalog: hält die Hub-record_id.
+  const [pickLeistungskatalogBeraterInnenLeistungen, setPickLeistungskatalogBeraterInnenLeistungen] = useState<string | null>(null);
+  // „Vorhandene wählen" für den Listenfeld-Rückbezug rechnungen.berater → berater/innen: hält die Hub-record_id.
+  const [pickBeraterInnenRechnungen, setPickBeraterInnenRechnungen] = useState<string | null>(null);
+  // „Vorhandene wählen" für den Listenfeld-Rückbezug leistungskatalog.berater → berater/innen: hält die Hub-record_id.
+  const [pickBeraterInnenLeistungskatalogBerater, setPickBeraterInnenLeistungskatalogBerater] = useState<string | null>(null);
   const enrichedZeiterfassung = useMemo(() => enrichZeiterfassung(data.zeiterfassung, { beraterInnenMap: data.beraterInnenMap, projekteMap: data.projekteMap, leistungskatalogMap: data.leistungskatalogMap }), [data.zeiterfassung, data.beraterInnenMap, data.projekteMap, data.leistungskatalogMap]);
   const enrichedRechnungen = useMemo(() => enrichRechnungen(data.rechnungen, { kundenMap: data.kundenMap, projekteMap: data.projekteMap, beraterInnenMap: data.beraterInnenMap }), [data.rechnungen, data.kundenMap, data.projekteMap, data.beraterInnenMap]);
   const enrichedProjekte = useMemo(() => enrichProjekte(data.projekte, { kundenMap: data.kundenMap, beraterInnenMap: data.beraterInnenMap }), [data.projekte, data.kundenMap, data.beraterInnenMap]);
@@ -230,6 +243,50 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
     }
   }
 
+  // Link an EXISTING Kunden to the Projekte hub: append the hub URL to the
+  // source's list field. Optimistic setter first, PATCH, undoToast counter-write.
+  async function linkProjekteKundenLaufendeProjekte(sourceId: string) {
+    const hub = pickProjekteKundenLaufendeProjekte;
+    const src = data.kunden.find(r => r.record_id === sourceId);
+    if (!hub || !src) return;
+    const ids = extractRecordIds(src.fields.laufende_projekte);
+    if (ids.includes(hub)) return;
+    const next = [...ids, hub].map(id => createRecordUrl(APP_IDS.PROJEKTE, id));
+    data.setKunden(list => list.map(r => (r.record_id === sourceId ? { ...r, fields: { ...r.fields, laufende_projekte: next } } : r)));
+    try {
+      await LivingAppsService.updateKundenEntry(sourceId, { laufende_projekte: next });
+    } catch (err) {
+      data.fetchAll();
+      throw err;
+    }
+    undoToast(`${appLabel('kunden')} — ${t('pick_linked')}`, async () => {
+      data.setKunden(list => list.map(r => (r.record_id === sourceId ? src : r)));
+      try { await LivingAppsService.updateKundenEntry(sourceId, { laufende_projekte: src.fields.laufende_projekte }); } catch { data.fetchAll(); }
+    });
+  }
+
+  // Link an EXISTING BeraterInnen to the Projekte hub: append the hub URL to the
+  // source's list field. Optimistic setter first, PATCH, undoToast counter-write.
+  async function linkProjekteBeraterInnenProjekte(sourceId: string) {
+    const hub = pickProjekteBeraterInnenProjekte;
+    const src = data.beraterInnen.find(r => r.record_id === sourceId);
+    if (!hub || !src) return;
+    const ids = extractRecordIds(src.fields.projekte);
+    if (ids.includes(hub)) return;
+    const next = [...ids, hub].map(id => createRecordUrl(APP_IDS.PROJEKTE, id));
+    data.setBeraterInnen(list => list.map(r => (r.record_id === sourceId ? { ...r, fields: { ...r.fields, projekte: next } } : r)));
+    try {
+      await LivingAppsService.updateBeraterInnenEntry(sourceId, { projekte: next });
+    } catch (err) {
+      data.fetchAll();
+      throw err;
+    }
+    undoToast(`${appLabel('berater/innen')} — ${t('pick_linked')}`, async () => {
+      data.setBeraterInnen(list => list.map(r => (r.record_id === sourceId ? src : r)));
+      try { await LivingAppsService.updateBeraterInnenEntry(sourceId, { projekte: src.fields.projekte }); } catch { data.fetchAll(); }
+    });
+  }
+
   function detailLeistungskatalog(record: Leistungskatalog, push = false) {
     const rec = enrichedLeistungskatalog.find(r => r.record_id === record.record_id);
     if (!rec) return;
@@ -257,6 +314,28 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
       undoToast(`${appLabel('leistungskatalog')} — ${t('crud_created')}`);
       data.fetchAll();
     }
+  }
+
+  // Link an EXISTING BeraterInnen to the Leistungskatalog hub: append the hub URL to the
+  // source's list field. Optimistic setter first, PATCH, undoToast counter-write.
+  async function linkLeistungskatalogBeraterInnenLeistungen(sourceId: string) {
+    const hub = pickLeistungskatalogBeraterInnenLeistungen;
+    const src = data.beraterInnen.find(r => r.record_id === sourceId);
+    if (!hub || !src) return;
+    const ids = extractRecordIds(src.fields.leistungen);
+    if (ids.includes(hub)) return;
+    const next = [...ids, hub].map(id => createRecordUrl(APP_IDS.LEISTUNGSKATALOG, id));
+    data.setBeraterInnen(list => list.map(r => (r.record_id === sourceId ? { ...r, fields: { ...r.fields, leistungen: next } } : r)));
+    try {
+      await LivingAppsService.updateBeraterInnenEntry(sourceId, { leistungen: next });
+    } catch (err) {
+      data.fetchAll();
+      throw err;
+    }
+    undoToast(`${appLabel('berater/innen')} — ${t('pick_linked')}`, async () => {
+      data.setBeraterInnen(list => list.map(r => (r.record_id === sourceId ? src : r)));
+      try { await LivingAppsService.updateBeraterInnenEntry(sourceId, { leistungen: src.fields.leistungen }); } catch { data.fetchAll(); }
+    });
   }
 
   function detailKunden(record: Kunden, push = false) {
@@ -315,6 +394,50 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
       undoToast(`${appLabel('berater/innen')} — ${t('crud_created')}`);
       data.fetchAll();
     }
+  }
+
+  // Link an EXISTING Rechnungen to the BeraterInnen hub: append the hub URL to the
+  // source's list field. Optimistic setter first, PATCH, undoToast counter-write.
+  async function linkBeraterInnenRechnungen(sourceId: string) {
+    const hub = pickBeraterInnenRechnungen;
+    const src = data.rechnungen.find(r => r.record_id === sourceId);
+    if (!hub || !src) return;
+    const ids = extractRecordIds(src.fields.berater);
+    if (ids.includes(hub)) return;
+    const next = [...ids, hub].map(id => createRecordUrl(APP_IDS.BERATERINNEN, id));
+    data.setRechnungen(list => list.map(r => (r.record_id === sourceId ? { ...r, fields: { ...r.fields, berater: next } } : r)));
+    try {
+      await LivingAppsService.updateRechnungenEntry(sourceId, { berater: next });
+    } catch (err) {
+      data.fetchAll();
+      throw err;
+    }
+    undoToast(`${appLabel('rechnungen')} — ${t('pick_linked')}`, async () => {
+      data.setRechnungen(list => list.map(r => (r.record_id === sourceId ? src : r)));
+      try { await LivingAppsService.updateRechnungenEntry(sourceId, { berater: src.fields.berater }); } catch { data.fetchAll(); }
+    });
+  }
+
+  // Link an EXISTING Leistungskatalog to the BeraterInnen hub: append the hub URL to the
+  // source's list field. Optimistic setter first, PATCH, undoToast counter-write.
+  async function linkBeraterInnenLeistungskatalogBerater(sourceId: string) {
+    const hub = pickBeraterInnenLeistungskatalogBerater;
+    const src = data.leistungskatalog.find(r => r.record_id === sourceId);
+    if (!hub || !src) return;
+    const ids = extractRecordIds(src.fields.berater);
+    if (ids.includes(hub)) return;
+    const next = [...ids, hub].map(id => createRecordUrl(APP_IDS.BERATERINNEN, id));
+    data.setLeistungskatalog(list => list.map(r => (r.record_id === sourceId ? { ...r, fields: { ...r.fields, berater: next } } : r)));
+    try {
+      await LivingAppsService.updateLeistungskatalogEntry(sourceId, { berater: next });
+    } catch (err) {
+      data.fetchAll();
+      throw err;
+    }
+    undoToast(`${appLabel('leistungskatalog')} — ${t('pick_linked')}`, async () => {
+      data.setLeistungskatalog(list => list.map(r => (r.record_id === sourceId ? src : r)));
+      try { await LivingAppsService.updateLeistungskatalogEntry(sourceId, { berater: src.fields.berater }); } catch { data.fetchAll(); }
+    });
   }
 
   function detailAngebote(record: Angebote, push = false) {
@@ -425,6 +548,51 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
         enablePhotoScan={AI_PHOTO_SCAN['Angebote']}
         enablePhotoLocation={AI_PHOTO_LOCATION['Angebote']}
       />
+      <PickExistingDialog
+        open={pickProjekteKundenLaufendeProjekte !== null}
+        onClose={() => setPickProjekteKundenLaufendeProjekte(null)}
+        title={t('pick_title', { title: appLabel('kunden') })}
+        items={data.kunden
+          .filter(r => !extractRecordIds(r.fields.laufende_projekte).includes(pickProjekteKundenLaufendeProjekte ?? ''))
+          .map(r => ({ id: r.record_id, label: String(r.fields.kundenname ?? appLabel('kunden')), hint: r.fields.anlagedatum ? String(r.fields.anlagedatum) : undefined }))}
+        onPick={linkProjekteKundenLaufendeProjekte}
+      />
+      <PickExistingDialog
+        open={pickProjekteBeraterInnenProjekte !== null}
+        onClose={() => setPickProjekteBeraterInnenProjekte(null)}
+        title={t('pick_title', { title: appLabel('berater/innen') })}
+        items={data.beraterInnen
+          .filter(r => !extractRecordIds(r.fields.projekte).includes(pickProjekteBeraterInnenProjekte ?? ''))
+          .map(r => ({ id: r.record_id, label: String(r.fields.nachname ?? appLabel('berater/innen')), hint: r.fields.einstiegsdatum ? String(r.fields.einstiegsdatum) : undefined }))}
+        onPick={linkProjekteBeraterInnenProjekte}
+      />
+      <PickExistingDialog
+        open={pickLeistungskatalogBeraterInnenLeistungen !== null}
+        onClose={() => setPickLeistungskatalogBeraterInnenLeistungen(null)}
+        title={t('pick_title', { title: appLabel('berater/innen') })}
+        items={data.beraterInnen
+          .filter(r => !extractRecordIds(r.fields.leistungen).includes(pickLeistungskatalogBeraterInnenLeistungen ?? ''))
+          .map(r => ({ id: r.record_id, label: String(r.fields.nachname ?? appLabel('berater/innen')), hint: r.fields.einstiegsdatum ? String(r.fields.einstiegsdatum) : undefined }))}
+        onPick={linkLeistungskatalogBeraterInnenLeistungen}
+      />
+      <PickExistingDialog
+        open={pickBeraterInnenRechnungen !== null}
+        onClose={() => setPickBeraterInnenRechnungen(null)}
+        title={t('pick_title', { title: appLabel('rechnungen') })}
+        items={data.rechnungen
+          .filter(r => !extractRecordIds(r.fields.berater).includes(pickBeraterInnenRechnungen ?? ''))
+          .map(r => ({ id: r.record_id, label: String(r.fields.rechnungsnummer ?? appLabel('rechnungen')), hint: r.fields.rechnungsdatum ? String(r.fields.rechnungsdatum) : undefined }))}
+        onPick={linkBeraterInnenRechnungen}
+      />
+      <PickExistingDialog
+        open={pickBeraterInnenLeistungskatalogBerater !== null}
+        onClose={() => setPickBeraterInnenLeistungskatalogBerater(null)}
+        title={t('pick_title', { title: appLabel('leistungskatalog') })}
+        items={data.leistungskatalog
+          .filter(r => !extractRecordIds(r.fields.berater).includes(pickBeraterInnenLeistungskatalogBerater ?? ''))
+          .map(r => ({ id: r.record_id, label: String(r.fields.leistungsbezeichnung ?? appLabel('leistungskatalog')) }))}
+        onPick={linkBeraterInnenLeistungskatalogBerater}
+      />
       <RecordOverlayHost
         overlay={overlay}
         placement={options?.placement}
@@ -481,9 +649,11 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
                   kundenLaufendeProjekteList={data.kunden}
                   onOpenKundenLaufendeProjekte={(r) => detailKunden(r, true)}
                   onAddKundenLaufendeProjekte={() => setKundenDialog({ defaults: { laufende_projekte: [createRecordUrl(APP_IDS.PROJEKTE, top.record.record_id)] } })}
+                  onPickKundenLaufendeProjekte={() => setPickProjekteKundenLaufendeProjekte(top.record.record_id)}
                   beraterInnenProjekteList={data.beraterInnen}
                   onOpenBeraterInnenProjekte={(r) => detailBeraterInnen(r, true)}
                   onAddBeraterInnenProjekte={() => setBeraterInnenDialog({ defaults: { projekte: [createRecordUrl(APP_IDS.PROJEKTE, top.record.record_id)] } })}
+                  onPickBeraterInnenProjekte={() => setPickProjekteBeraterInnenProjekte(top.record.record_id)}
                   angeboteList={data.angebote}
                   onOpenAngebote={(r) => detailAngebote(r, true)}
                   onAddAngebote={() => setAngeboteDialog({ defaults: { projekt: createRecordUrl(APP_IDS.PROJEKTE, top.record.record_id) } })}
@@ -504,6 +674,7 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
                   beraterInnenLeistungenList={data.beraterInnen}
                   onOpenBeraterInnenLeistungen={(r) => detailBeraterInnen(r, true)}
                   onAddBeraterInnenLeistungen={() => setBeraterInnenDialog({ defaults: { leistungen: [createRecordUrl(APP_IDS.LEISTUNGSKATALOG, top.record.record_id)] } })}
+                  onPickBeraterInnenLeistungen={() => setPickLeistungskatalogBeraterInnenLeistungen(top.record.record_id)}
                 />
               </>
             );
@@ -542,12 +713,14 @@ export function useEntityCrud(data: EntityCrudData, options?: EntityCrudOptions)
                   rechnungenList={data.rechnungen}
                   onOpenRechnungen={(r) => detailRechnungen(r, true)}
                   onAddRechnungen={() => setRechnungenDialog({ defaults: { berater: [createRecordUrl(APP_IDS.BERATERINNEN, top.record.record_id)] } })}
+                  onPickRechnungen={() => setPickBeraterInnenRechnungen(top.record.record_id)}
                   projekteProjektleitungList={data.projekte}
                   onOpenProjekteProjektleitung={(r) => detailProjekte(r, true)}
                   onAddProjekteProjektleitung={() => setProjekteDialog({ defaults: { projektleitung: createRecordUrl(APP_IDS.BERATERINNEN, top.record.record_id) } })}
                   leistungskatalogBeraterList={data.leistungskatalog}
                   onOpenLeistungskatalogBerater={(r) => detailLeistungskatalog(r, true)}
                   onAddLeistungskatalogBerater={() => setLeistungskatalogDialog({ defaults: { berater: [createRecordUrl(APP_IDS.BERATERINNEN, top.record.record_id)] } })}
+                  onPickLeistungskatalogBerater={() => setPickBeraterInnenLeistungskatalogBerater(top.record.record_id)}
                 />
               </>
             );
