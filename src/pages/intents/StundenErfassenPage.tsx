@@ -6,7 +6,8 @@
  * Composes: IntentWizardShell, EntitySelectStep, StatusBadge.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { format, getMonth } from 'date-fns';
 import { tx } from '@/i18n';
 import { useDashboardData } from '@/hooks/useDashboardData';
@@ -35,6 +36,8 @@ const BERATER_APP_ID = APP_IDS['BERATER/INNEN' as keyof typeof APP_IDS] ?? '6aa2
 
 export default function StundenErfassenPage() {
   const { beraterInnen, projekte, leistungskatalog, loading, error, fetchAll } = useDashboardData();
+  const location = useLocation();
+  const initProjektId = (location.state as { projektId?: string } | null)?.projektId;
 
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -64,6 +67,13 @@ export default function StundenErfassenPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  // Pre-select project from router state (e.g. from ProjektDetailPage "Zeit buchen")
+  useEffect(() => {
+    if (!initProjektId || !projekte.length) return;
+    const found = projekte.find(p => p.record_id === initProjektId);
+    if (found) setSelectedProjekt(found);
+  }, [initProjektId, projekte]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filtered data
   const aktiveBerater = beraterInnen.filter(b => b.fields.status?.key === 'aktiv');

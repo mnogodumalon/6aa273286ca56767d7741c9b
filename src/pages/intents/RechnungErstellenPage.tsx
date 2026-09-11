@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useLocation } from 'react-router-dom';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import type { Projekte, Zeiterfassung } from '@/types/app';
 import { APP_IDS, LOOKUP_OPTIONS } from '@/types/app';
@@ -26,16 +27,18 @@ const ABRECHNUNGSMONAT_OPTIONS = LOOKUP_OPTIONS['rechnungen']?.['abrechnungsmona
 
 export default function RechnungErstellenPage() {
   const { projekte, kunden, zeiterfassung, rechnungen, loading, error, fetchAll } = useDashboardData();
+  const location = useLocation();
+  const initState = location.state as { projektId?: string; monatKey?: string; jahr?: string; initialStep?: number } | null;
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(initState?.initialStep ?? 1);
 
   // Step 1 state
   const [selectedProjekt, setSelectedProjekt] = useState<Projekte | null>(null);
   const [selectedKundeId, setSelectedKundeId] = useState<string | null>(null);
 
   // Step 2 state
-  const [abrechnungsmonat, setAbrechnungsmonat] = useState<string>(ABRECHNUNGSMONAT_OPTIONS[0]?.key ?? 'januar');
-  const [abrechnungsjahr, setAbrechnungsjahr] = useState<string>(format(new Date(), 'yyyy'));
+  const [abrechnungsmonat, setAbrechnungsmonat] = useState<string>(initState?.monatKey ?? ABRECHNUNGSMONAT_OPTIONS[0]?.key ?? 'januar');
+  const [abrechnungsjahr, setAbrechnungsjahr] = useState<string>(initState?.jahr ?? format(new Date(), 'yyyy'));
 
   // Step 3 state
   const [rechnungsnummer, setRechnungsnummer] = useState('');
@@ -50,6 +53,17 @@ export default function RechnungErstellenPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdRechnungId, setCreatedRechnungId] = useState<string | null>(null);
+
+  // Pre-select project from router state (e.g. from ProjektDetailPage "Rechnung erstellen")
+  useEffect(() => {
+    if (!initState?.projektId || !projekte.length) return;
+    const found = projekte.find(p => p.record_id === initState.projektId);
+    if (found) {
+      setSelectedProjekt(found);
+      const kundeId = extractRecordId(found.fields.kunde);
+      setSelectedKundeId(kundeId);
+    }
+  }, [projekte]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-generate Rechnungsnummer when reaching step 3 and field is still empty
   useEffect(() => {

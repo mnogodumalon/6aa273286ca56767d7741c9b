@@ -33,7 +33,7 @@ function toneForProjektStatus(status: string | undefined): KanbanTone {
 
 export default function DashboardOverview({ data }: { data: DashboardData }) {
   const {
-    beraterInnen, kunden, projekte, angebote, zeiterfassung, rechnungen,
+    beraterInnen, kunden, projekte, angebote, zeiterfassung, rechnungen, leistungskatalog,
     setProjekte, setRechnungen,
     fetchAll,
   } = data;
@@ -109,50 +109,69 @@ export default function DashboardOverview({ data }: { data: DashboardData }) {
     [],
   );
 
-  // Per-project stats for richer kanban cards
-  const projektStats = useMemo(() => {
-    const stats: Record<string, { stunden: number; offeneRechnungen: number }> = {};
+  // Per-project enriched card data for kanban
+  const projektCardData = useMemo(() => {
+    type CardData = { unabgerechneterBetrag: number; teamInitials: string[]; budgetPct: number | null; stunden: number };
+    const result: Record<string, CardData> = {};
     projekte.forEach(p => {
       const pid = p.record_id;
-      const stunden = zeiterfassung
-        .filter(z => extractRecordId(z.fields.projekt) === pid)
-        .reduce((s, z) => s + (z.fields.stunden ?? 0), 0);
-      const offeneRechnungen = rechnungen.filter(r => {
-        if (extractRecordId(r.fields.projekt) !== pid) return false;
-        const st = lookupKey(r.fields.rechnungsstatus);
-        return st === 'offen' || st === 'ueberfaellig';
-      }).length;
-      stats[pid] = { stunden, offeneRechnungen };
+      const pZeit = zeiterfassung.filter(z => extractRecordId(z.fields.projekt) === pid);
+      let totalStunden = 0;
+      let verbrauchterBetrag = 0;
+      let unabgerechneterBetrag = 0;
+      const teamIds = new Set<string>();
+      const plId = extractRecordId(p.fields.projektleitung);
+      if (plId) teamIds.add(plId);
+      pZeit.forEach(z => {
+        const stunden = z.fields.stunden ?? 0;
+        totalStunden += stunden;
+        const beraterId = extractRecordId(z.fields.berater);
+        if (beraterId) teamIds.add(beraterId);
+        let rate = 0;
+        const leistungId = extractRecordId(z.fields.leistung);
+        const leistung = leistungId ? leistungskatalog.find(l => l.record_id === leistungId) : undefined;
+        if (leistung?.fields.stundensatz_leistung != null) {
+          rate = leistung.fields.stundensatz_leistung;
+        } else if (beraterId) {
+          const b = beraterInnen.find(b => b.record_id === beraterId);
+          if (b?.fields.stundensatz != null) rate = b.fields.stundensatz;
+        }
+        verbrauchterBetrag += stunden * rate;
+        if (z.fields.verrechenbar === true) {
+          const abgerechnet = rechnungen.some(r =>
+            extractRecordId(r.fields.projekt) === pid &&
+            lookupKey(r.fields.abrechnungsmonat) === lookupKey(z.fields.monat) &&
+            r.fields.abrechnungsjahr === z.fields.jahr &&
+            lookupKey(r.fields.rechnungsstatus) !== 'storniert'
+          );
+          if (!abgerechnet) unabgerechneterBetrag += stunden * rate;
+        }
+      });
+      const teamInitials = [...teamIds].slice(0, 4).map(bid => {
+        const b = beraterInnen.find(b => b.record_id === bid);
+        return `${(b?.fields.vorname ?? '').charAt(0)}${(b?.fields.nachname ?? '').charAt(0)}`.toUpperCase();
+      });
+      const budget = p.fields.budget;
+      const budgetPct = budget && budget > 0 ? Math.min(100, Math.round((verbrauchterBetrag / budget) * 100)) : null;
+      result[pid] = { unabgerechneterBetrag, teamInitials, budgetPct, stunden: totalStunden };
     });
-    return stats;
-  }, [projekte, zeiterfassung, rechnungen]);
+    return result;
+  }, [projekte, zeiterfassung, rechnungen, leistungskatalog, beraterInnen]);
 
-  // Kanban cards (filtered if needed)
+  // Kanban cards (filtered if needed; rich content is in renderCard)
   const cards = useMemo<KanbanCard[]>(() => {
     const filtered = statusFilter ? projekte.filter(p => lookupKey(p.fields.status) === statusFilter) : projekte;
     return filtered.map(p => {
       const status = lookupKey(p.fields.status) ?? '';
-      const enriched = enrichedProjekte.find(ep => ep.record_id === p.record_id);
-      const stats = projektStats[p.record_id];
       const isUeberfaellig = p.fields.projektende && p.fields.projektende < today && status !== 'abgeschlossen';
-      const subtitleParts: string[] = [];
-      if (enriched?.kundeName) subtitleParts.push(enriched.kundeName);
-      else if (p.fields.projektart?.label) subtitleParts.push(p.fields.projektart.label);
-      const meta: string[] = [];
-      if (stats?.stunden) meta.push(`${stats.stunden} h`);
-      if (stats?.offeneRechnungen) meta.push(`${stats.offeneRechnungen} offen`);
-      if (p.fields.projektende && !isUeberfaellig) meta.push(formatDate(p.fields.projektende));
-      if (isUeberfaellig) meta.push(`⚠ ${formatDate(p.fields.projektende)}`);
-      const subtitle = [...subtitleParts, ...meta].join(' · ') || undefined;
       return {
         id: `projekt:${p.record_id}`,
         column: status,
         title: p.fields.projektkennung ?? tx('Ohne Kennung'),
-        subtitle,
         tone: isUeberfaellig ? 'warning' : toneForProjektStatus(status),
       };
     });
-  }, [projekte, enrichedProjekte, statusFilter, projektStats, today]);
+  }, [projekte, statusFilter, today]);
 
   // Compute next sequential Projekt-ID candidate for current year
   const nextProjektKennung = useMemo(() => {
@@ -166,16 +185,25 @@ export default function DashboardOverview({ data }: { data: DashboardData }) {
   const moveProjekt = async (cardId: string, newColumn: string): Promise<string | void> => {
     const rid = cardId.split(':')[1];
     if (!rid) return;
-    // Block moving to "Abgeschlossen" if open invoices exist
+    // Block moving to "Abgeschlossen" if unbilled hours or open invoices exist
     if (newColumn === 'abgeschlossen') {
-      const projektRechnungen = rechnungen.filter(r => extractRecordId(r.fields.projekt) === rid);
-      const hasOffene = projektRechnungen.some(r => {
+      const pZeit = zeiterfassung.filter(z => extractRecordId(z.fields.projekt) === rid);
+      const hasUnbilled = pZeit.some(z => {
+        if (z.fields.verrechenbar !== true) return false;
+        return !rechnungen.some(r =>
+          extractRecordId(r.fields.projekt) === rid &&
+          lookupKey(r.fields.abrechnungsmonat) === lookupKey(z.fields.monat) &&
+          r.fields.abrechnungsjahr === z.fields.jahr &&
+          lookupKey(r.fields.rechnungsstatus) !== 'storniert'
+        );
+      });
+      if (hasUnbilled) return tx('Noch unabgerechnete Stunden — bitte zuerst eine Rechnung erstellen.');
+      const hasOffene = rechnungen.some(r => {
+        if (extractRecordId(r.fields.projekt) !== rid) return false;
         const st = lookupKey(r.fields.rechnungsstatus);
         return st === 'offen' || st === 'ueberfaellig';
       });
-      if (hasOffene) {
-        return tx('Noch offene Rechnungen — bitte zuerst begleichen.');
-      }
+      if (hasOffene) return tx('Noch offene Rechnungen — bitte zuerst begleichen.');
     }
     const prev = projekte.map(p => ({ ...p }));
     setProjekte(old => old.map(p =>
@@ -382,6 +410,56 @@ export default function DashboardOverview({ data }: { data: DashboardData }) {
             }}
             onCardMove={moveProjekt}
             onAddCard={column => crud.projekte.openCreate({ status: column, projektkennung: nextProjektKennung })}
+            renderCard={card => {
+              const rid = card.id.split(':')[1] ?? '';
+              const p = projekte.find(pr => pr.record_id === rid);
+              const cd = projektCardData[rid];
+              const enriched = enrichedProjekte.find(ep => ep.record_id === rid);
+              const isUeberfaellig = !!(p?.fields.projektende && p.fields.projektende < today && lookupKey(p.fields.status) !== 'abgeschlossen');
+              const budgetPct = cd?.budgetPct ?? null;
+              const unabgerechneterBetrag = cd?.unabgerechneterBetrag ?? 0;
+              const teamInitials = cd?.teamInitials ?? [];
+              return (
+                <div className="space-y-1.5 p-3">
+                  <div className="font-medium text-sm truncate">{card.title}</div>
+                  {enriched?.kundeName && (
+                    <div className="text-xs text-muted-foreground truncate">{enriched.kundeName}</div>
+                  )}
+                  {p?.fields.projektende && (
+                    <div className={`text-xs ${isUeberfaellig ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                      {isUeberfaellig ? '⚠ ' : ''}{formatDate(p.fields.projektende)}
+                    </div>
+                  )}
+                  {budgetPct != null && (
+                    <div className="w-full h-1 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${budgetPct >= 90 ? 'bg-destructive' : 'bg-primary'}`}
+                        style={{ width: `${budgetPct}%` }}
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {unabgerechneterBetrag > 0 && (
+                      <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 shrink-0">
+                        {formatCurrency(unabgerechneterBetrag)} {tx('offen')}
+                      </span>
+                    )}
+                    {teamInitials.length > 0 && (
+                      <div className="flex -space-x-1 ml-auto">
+                        {teamInitials.map((ini, i) => (
+                          <div
+                            key={i}
+                            className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[9px] font-semibold flex items-center justify-center border border-background"
+                          >
+                            {ini}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }}
           />
         }
         aside={
