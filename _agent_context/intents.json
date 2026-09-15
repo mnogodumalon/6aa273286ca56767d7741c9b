@@ -3,6 +3,30 @@
   "flows": [],
   "unregistered_pages": [
     {
+      "file": "src/pages/intents/AngebotAnnehmenPage.tsx",
+      "summary": "/**\n * Angebot annehmen — 4-Schritt-Wizard.\n * Steps: 1) Angebot wählen (Karten mit Grau-Zustand) → 2) Projekt anlegen (Formular mit Vorausfüllung)\n *        → 3) Team zuweisen (Projektleitung + Team) → 4) Zusammenfassung & anlegen.\n * Reads: angebote, projekte, kunden, berater/innen.\n * Writes: projekte (createProjekteEntry), berater/innen (updateBeraterInnenEntry × n), angebote (updateAngeboteEntry).\n * Composes: IntentWizardShell, WizardStep, StepNav, SummaryStep, SuccessStep, StatusBadge, ChoiceGroup, Field, Bound, DatePicker.\n */",
+      "components": [
+        "Badge",
+        "Bound",
+        "ChoiceGroup",
+        "DatePicker",
+        "Field",
+        "Input",
+        "IntentWizardShell",
+        "StatusBadge",
+        "StepNav",
+        "SuccessStep",
+        "SummaryStep",
+        "Textarea",
+        "WizardStep",
+        "useEntityCrud"
+      ],
+      "writes": [
+        "updateAngeboteEntry",
+        "updateBeraterInnenEntry"
+      ]
+    },
+    {
       "file": "src/pages/intents/AngebotErstellenPage.tsx",
       "summary": "/**\n * Angebot erstellen — 3-Schritt-Wizard.\n * Steps: 1) Kunde wählen (+ optional Projekt) → 2) Angebotsdetails eintragen →\n *        3) Kosten & Zeitrahmen festlegen → Angebot anlegen.\n * Reads: kunden, projekte. Writes: angebote (createAngeboteEntry).\n * Composes: IntentWizardShell, EntitySelectStep, StatusBadge.\n */",
       "components": [

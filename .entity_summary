@@ -69,7 +69,7 @@ createRecordUrl from the service. Note the lowercase `l` in the service path.
   → projekt links to app_id 6aa273295a15f8de72caafa5
   → berater links to app_id 6aa2732961edefefe81f0158
 - Projekte (projekte): budget[number], projektkennung!^[string/text], projektnummer![number], projektart![lookup/select: entwicklung|schulung|konzeption|support|sonstiges|it_beratung], projektstart_jahr!^[string/text] "Startjahr", projektstart_monat[lookup/select: januar|februar|maerz|april|mai|juni|juli|august|september|oktober|november|dezember] "Startmonat", status![lookup/radio: in_bearbeitung|akquise|abgeschlossen] "Projektstatus", ansprechpartner_kunde[string/text] "Ansprechpartner beim Kunden", letzter_schritt[string/textarea] "Letzter Schritt / aktueller Stand", projektende[date/date] "Geplantes Projektende", notizen[string/textarea], kunde![applookup/select], projektleitung[applookup/select]
-  ≡ 5 records at build time
+  ≡ 6 records at build time
   ◈ projektart → choice (6 options, ChoiceGroup) · status → choice (3 options, ChoiceGroup) · kunde → record (kunden, EntitySelectStep) · projektleitung → record (berater/innen, EntitySelectStep)
   ⚙ getProjekte() · getProjekteEntry(id) · createProjekteEntry(fields) · updateProjekteEntry(id, fields) · deleteProjekteEntry(id) · queryProjekte({ filter, orderby, limit, offset, fields }) · countProjekte(filter?)
   ✚ EnrichedProjekte adds ONLY kundeName, projektleitungName — via enrichProjekte(projekte, { kundenMap, beraterInnenMap }), all maps required
@@ -99,7 +99,7 @@ createRecordUrl from the service. Note the lowercase `l` in the service path.
   → leistungen links to app_id 6aa273296dbcd7b108665956
   → projekte links to app_id 6aa273295a15f8de72caafa5
 - Angebote (angebote): kunde[applookup/select], angebotsnummer!^[string/text], angebotsjahr!^[string/text] "Jahr", angebotstyp![lookup/select: dienstleistung=Dienstleistungsangebot|projekt=Projektangebot|wartung=Wartungsangebot|schulung=Schulungsangebot|sonstiges], angebotsdatum![date/date], gueltig_bis[date/date], zeitrahmen_anfang[date/date] "Beginn", zeitrahmen_ende[date/date] "Ende (falls vorhanden)", dauer[string/text], kostentyp[lookup/select: einmalig|monatlich|jaehrlich|nach_aufwand|pauschal|sonstiges], kostenbetrag[number] "Betrag (€)", kosten_beschreibung[string/textarea] "Kostenbeschreibung", angebotsbeschreibung[string/textarea], leistungspositionen[string/textarea], anmerkungen[string/textarea] "Anmerkungen / Sonstiges", vorlage_datei[file] "Angebotsvorlage (PDF/Dokument)", projekt[applookup/select] "Zugewiesenes Projekt", angebotsstatus![lookup/select: offen|gesendet|angenommen|abgelehnt|standard_offen]
-  ≡ 6 records at build time
+  ≡ 7 records at build time
   ◈ angebotstyp → choice (5 options, ChoiceGroup) · kostentyp → choice (6 options, ChoiceGroup) · angebotsstatus → choice (5 options, ChoiceGroup) · kunde → record (kunden, EntitySelectStep) · projekt → record (projekte, EntitySelectStep)
   ⚙ getAngebote() · getAngeboteEntry(id) · createAngeboteEntry(fields) · updateAngeboteEntry(id, fields) · deleteAngeboteEntry(id) · queryAngebote({ filter, orderby, limit, offset, fields }) · countAngebote(filter?)
   ✚ EnrichedAngebote adds ONLY kundeName, projektName — via enrichAngebote(angebote, { kundenMap, projekteMap }), all maps required
