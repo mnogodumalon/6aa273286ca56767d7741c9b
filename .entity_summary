@@ -52,7 +52,7 @@ There is NO `@/config/appIds`, no `@/config/lookupOptions` and no
 createRecordUrl from the service. Note the lowercase `l` in the service path.
 
 - Zeiterfassung (zeiterfassung): datum!^[date/date], stunden!^[number] "Geleistete Stunden", monat![lookup/select: januar|februar|maerz|april|mai|juni|juli|august|september|oktober|november|dezember] "Abrechnungsmonat", jahr![string/text] "Abrechnungsjahr", taetigkeitsbeschreibung[string/textarea], verrechenbar[bool], notizen[string/textarea], berater!^[applookup/select] "Berater/in", projekt!^[applookup/select], leistung^[applookup/select] "Erbrachte Leistung"
-  ≡ 5 records at build time
+  ≡ 11 records at build time
   ◈ berater → record (berater/innen, EntitySelectStep) · projekt → record (projekte, EntitySelectStep) · leistung → record (leistungskatalog, EntitySelectStep)
   ⚙ getZeiterfassung() · getZeiterfassungEntry(id) · createZeiterfassungEntry(fields) · updateZeiterfassungEntry(id, fields) · deleteZeiterfassungEntry(id) · queryZeiterfassung({ filter, orderby, limit, offset, fields }) · countZeiterfassung(filter?)
   ✚ EnrichedZeiterfassung adds ONLY beraterName, projektName, leistungName — via enrichZeiterfassung(zeiterfassung, { beraterInnenMap, projekteMap, leistungskatalogMap }), all maps required
@@ -60,7 +60,7 @@ createRecordUrl from the service. Note the lowercase `l` in the service path.
   → projekt links to app_id 6aa273295a15f8de72caafa5
   → leistung links to app_id 6aa273296dbcd7b108665956
 - Rechnungen (rechnungen): rechnungsnummer!^[string/text], rechnungsdatum![date/date], faelligkeitsdatum[date/date], rechnungsstatus![lookup/radio: bezahlt|storniert|ueberfaellig|offen], abrechnungsmonat[lookup/select: januar|februar|maerz|april|mai|juni|juli|august|september|oktober|november|dezember], abrechnungsjahr[string/text], nettobetrag[number], mehrwertsteuer[number], gesamtbetrag![number], zahlungseingang[date/date], leistungspositionen[string/textarea], notizen[string/textarea], rechnungsdatei[file] "Rechnungsdokument (PDF)", kunde![applookup/select], projekt![applookup/select], berater[multipleapplookup/select] "Beteiligte Berater/innen"
-  ≡ 1 records at build time
+  ≡ 2 records at build time
   · berater: Arbitrary number of referenced LivingApp records from the target lookup app 'Berater/innen' with the id `6aa2732961edefefe81f0158`. The field value will be a…
   ◈ rechnungsstatus → choice (4 options, ChoiceGroup) · kunde → record (kunden, EntitySelectStep) · projekt → record (projekte, EntitySelectStep) · berater → record (berater/innen, EntitySelectStep)
   ⚙ getRechnungen() · getRechnungenEntry(id) · createRechnungenEntry(fields) · updateRechnungenEntry(id, fields) · deleteRechnungenEntry(id) · queryRechnungen({ filter, orderby, limit, offset, fields }) · countRechnungen(filter?)
@@ -69,7 +69,7 @@ createRecordUrl from the service. Note the lowercase `l` in the service path.
   → projekt links to app_id 6aa273295a15f8de72caafa5
   → berater links to app_id 6aa2732961edefefe81f0158
 - Projekte (projekte): budget[number], projektkennung!^[string/text], projektnummer![number], projektart![lookup/select: entwicklung|schulung|konzeption|support|sonstiges|it_beratung], projektstart_jahr!^[string/text] "Startjahr", projektstart_monat[lookup/select: januar|februar|maerz|april|mai|juni|juli|august|september|oktober|november|dezember] "Startmonat", status![lookup/radio: in_bearbeitung|akquise|abgeschlossen] "Projektstatus", ansprechpartner_kunde[string/text] "Ansprechpartner beim Kunden", letzter_schritt[string/textarea] "Letzter Schritt / aktueller Stand", projektende[date/date] "Geplantes Projektende", notizen[string/textarea], kunde![applookup/select], projektleitung[applookup/select]
-  ≡ 4 records at build time
+  ≡ 5 records at build time
   ◈ projektart → choice (6 options, ChoiceGroup) · status → choice (3 options, ChoiceGroup) · kunde → record (kunden, EntitySelectStep) · projektleitung → record (berater/innen, EntitySelectStep)
   ⚙ getProjekte() · getProjekteEntry(id) · createProjekteEntry(fields) · updateProjekteEntry(id, fields) · deleteProjekteEntry(id) · queryProjekte({ filter, orderby, limit, offset, fields }) · countProjekte(filter?)
   ✚ EnrichedProjekte adds ONLY kundeName, projektleitungName — via enrichProjekte(projekte, { kundenMap, beraterInnenMap }), all maps required
@@ -83,14 +83,14 @@ createRecordUrl from the service. Note the lowercase `l` in the service path.
   ✚ EnrichedLeistungskatalog adds ONLY beraterName — via enrichLeistungskatalog(leistungskatalog, { beraterInnenMap }), all maps required
   → berater links to app_id 6aa2732961edefefe81f0158
 - Kunden (kunden): kundenname!^[string/text] "Name / Firmenname", kundentyp![lookup/radio: einzelperson|firma|behoerde|sonstiges], email!^[string/email] "E-Mail", telefon^[string/tel], strasse^[string/text], hausnummer[string/text], plz[string/text] "Postleitzahl", ort[string/text], re_strasse[string/text] "Rechnungsstraße", re_hausnummer[string/text] "Rechnungs-Hausnummer", re_plz[string/text] "Rechnungs-Postleitzahl", re_ort[string/text] "Rechnungs-Ort", anlagedatum[date/date], ap_titel[string/text] "Titel Ansprechpartner", ap_vorname[string/text] "Vorname Ansprechpartner", ap_nachname[string/text] "Nachname Ansprechpartner", ap_email[string/email] "E-Mail Ansprechpartner", ap_telefon[string/tel] "Telefon Ansprechpartner", bevorzugte_kontaktart[lookup/select: email=E-Mail|telefon|post|persoenlich], letzter_kontakt_datum[date/date] "Datum letzter Kontakt", letzter_kontakt_ansprechpartner[string/text] "Ansprechpartner beim letzten Kontakt", notizen[string/textarea], laufende_projekte[multipleapplookup/select] "Aktuell laufende Projekte"
-  ≡ 8 records at build time
+  ≡ 9 records at build time
   · laufende_projekte: Arbitrary number of referenced LivingApp records from the target lookup app 'Projekte' with the id `6aa273295a15f8de72caafa5`. The field value will be a list…
   ◈ kundentyp → choice (4 options, ChoiceGroup) · bevorzugte_kontaktart → choice (4 options, ChoiceGroup) · laufende_projekte → record (projekte, EntitySelectStep)
   ⚙ getKunden() · getKundenEntry(id) · createKundenEntry(fields) · updateKundenEntry(id, fields) · deleteKundenEntry(id) · queryKunden({ filter, orderby, limit, offset, fields }) · countKunden(filter?)
   ✚ EnrichedKunden adds ONLY laufende_projekteName — via enrichKunden(kunden, { projekteMap }), all maps required
   → laufende_projekte links to app_id 6aa273295a15f8de72caafa5
 - Berater/innen (berater/innen): nachname!^[string/text], vorname!^[string/text], titel^[string/text] "Titel (optional)", strasse^[string/text], hausnummer^[string/text], plz[string/text] "Postleitzahl", ort[string/text], email_beruflich![string/email] "E-Mail (beruflich)", email_privat[string/email] "E-Mail (privat)", telefon[string/tel], einstiegsdatum[date/date], status![lookup/radio: aktiv|urlaub|elternzeit|sonstiges], stundensatz[number] "Stundensatz (€/h)", sonstiges_1[string/textarea] "Sonstige Anmerkungen (1)", sonstiges_2[string/textarea] "Sonstige Anmerkungen (2)", stunden_aktueller_monat[number] "Gebuchte Stunden – aktueller Monat", stunden_aktuelles_quartal[number] "Gebuchte Stunden – aktuelles Quartal", stunden_aktuelles_jahr[number] "Gebuchte Stunden – aktuelles Jahr", stunden_letzter_monat[number] "Gebuchte Stunden – letzter Monat", stunden_letztes_quartal[number] "Gebuchte Stunden – letztes Quartal", stunden_letztes_jahr[number] "Gebuchte Stunden – letztes Jahr", leistungen[multipleapplookup/select] "Erbringbare Leistungen", projekte[multipleapplookup/select] "Aktuell zugewiesene Projekte"
-  ≡ 5 records at build time
+  ≡ 6 records at build time
   · leistungen: Arbitrary number of referenced LivingApp records from the target lookup app 'Leistungskatalog' with the id `6aa273296dbcd7b108665956`. The field value will b…
   · projekte: Arbitrary number of referenced LivingApp records from the target lookup app 'Projekte' with the id `6aa273295a15f8de72caafa5`. The field value will be a list…
   ◈ status → choice (4 options, ChoiceGroup) · leistungen → record (leistungskatalog, EntitySelectStep) · projekte → record (projekte, EntitySelectStep)
@@ -99,7 +99,7 @@ createRecordUrl from the service. Note the lowercase `l` in the service path.
   → leistungen links to app_id 6aa273296dbcd7b108665956
   → projekte links to app_id 6aa273295a15f8de72caafa5
 - Angebote (angebote): kunde[applookup/select], angebotsnummer!^[string/text], angebotsjahr!^[string/text] "Jahr", angebotstyp![lookup/select: dienstleistung=Dienstleistungsangebot|projekt=Projektangebot|wartung=Wartungsangebot|schulung=Schulungsangebot|sonstiges], angebotsdatum![date/date], gueltig_bis[date/date], zeitrahmen_anfang[date/date] "Beginn", zeitrahmen_ende[date/date] "Ende (falls vorhanden)", dauer[string/text], kostentyp[lookup/select: einmalig|monatlich|jaehrlich|nach_aufwand|pauschal|sonstiges], kostenbetrag[number] "Betrag (€)", kosten_beschreibung[string/textarea] "Kostenbeschreibung", angebotsbeschreibung[string/textarea], leistungspositionen[string/textarea], anmerkungen[string/textarea] "Anmerkungen / Sonstiges", vorlage_datei[file] "Angebotsvorlage (PDF/Dokument)", projekt[applookup/select] "Zugewiesenes Projekt", angebotsstatus![lookup/select: offen|gesendet|angenommen|abgelehnt|standard_offen]
-  ≡ 5 records at build time
+  ≡ 6 records at build time
   ◈ angebotstyp → choice (5 options, ChoiceGroup) · kostentyp → choice (6 options, ChoiceGroup) · angebotsstatus → choice (5 options, ChoiceGroup) · kunde → record (kunden, EntitySelectStep) · projekt → record (projekte, EntitySelectStep)
   ⚙ getAngebote() · getAngeboteEntry(id) · createAngeboteEntry(fields) · updateAngeboteEntry(id, fields) · deleteAngeboteEntry(id) · queryAngebote({ filter, orderby, limit, offset, fields }) · countAngebote(filter?)
   ✚ EnrichedAngebote adds ONLY kundeName, projektName — via enrichAngebote(angebote, { kundenMap, projekteMap }), all maps required
